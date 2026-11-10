@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GoC 编程</title>
+  <link rel="stylesheet" href="./styles.css">
+  <!-- Monaco Editor AMD Loader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+</head>
+<body>
+  <div class="goc-app" id="gocApp">
+    <!-- ==================== 顶部工具栏 ==================== -->
+    <header class="goc-toolbar">
+      <span class="goc-logo" title="GoC 海龟绘图">GoC</span>
+
+      <button class="goc-tbtn" id="btnCopy" type="button" title="复制代码到剪贴板">复制</button>
+      <button class="goc-tbtn" id="btnDownload" type="button" title="下载源代码文件">项目</button>
+
+      <span class="goc-toolbar-divider"></span>
+
+      <button class="goc-tbtn goc-tbtn-accent" id="btnGotoCode" type="button">进入代码</button>
+      <input class="goc-project-name" id="projectName" type="text" placeholder="项目名称"
+             maxlength="40" value="未命名作品" title="项目名称">
+      <label class="goc-autosave" title="自动保存到本机">
+        <input type="checkbox" id="autoSave" checked> 自动保存
+      </label>
+      <select class="goc-lang-select" id="langSelect" title="编程语言">
+        <option value="cpp">cpp</option>
+      </select>
+
+      <div class="goc-toolbar-spacer"></div>
+
+      <button class="goc-tbtn goc-tbtn-primary" id="btnRun" type="button">
+        <svg class="goc-btn-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        运行
+      </button>
+      <button class="goc-tbtn" id="btnClearCanvas" type="button">清空画布</button>
+      <button class="goc-tbtn" id="btnResetTurtle" type="button">重置海龟</button>
+      <button class="goc-tbtn goc-tbtn-danger" id="btnSubmit" type="button">提交作品</button>
+      <span class="goc-status-badge goc-status-idle" id="statusBadge">就绪</span>
+    </header>
+
+    <!-- ==================== 主体区域 ==================== -->
+    <main class="goc-body">
+      <!-- 左侧：绘图画布 -->
+      <section class="goc-canvas-panel">
+        <div class="goc-canvas-wrapper" id="canvasWrapper">
+          <canvas class="goc-canvas" id="drawCanvas"></canvas>
+        </div>
+      </section>
+
+      <!-- 右侧：代码编辑器 + 常见命令 -->
+      <section class="goc-right-panel">
+        <!-- 代码编辑器 -->
+        <div class="goc-editor-panel">
+          <div class="goc-editor-tabs">
+            <span class="goc-editor-tab is-active">main.cpp</span>
+            <span class="goc-editor-hint" id="editorHint">C++ 代码</span>
+          </div>
+          <div class="goc-editor-container" id="editorContainer">
+            <div class="goc-monaco" id="monacoEditor"></div>
+            <textarea class="goc-code-textarea" id="codeTextarea" spellcheck="false"></textarea>
+          </div>
+        </div>
+
+        <!-- 常见命令面板 -->
+        <div class="goc-command-panel">
+          <div class="goc-command-header">
+            <span class="goc-command-title">常见命令</span>
+            <span class="goc-command-sub">鼠标点击插入代码</span>
+          </div>
+          <div class="goc-command-scroll">
+            <div class="goc-command-tables">
+              <!-- 绘图命令：颜色 + 绘图命令 + 功能 -->
+              <table class="goc-cmd-table">
+                <thead>
+                  <tr>
+                    <th class="goc-col-color">颜色</th>
+                    <th class="goc-col-cmd">绘图命令</th>
+                    <th class="goc-col-desc">功能</th>
+                  </tr>
+                </thead>
+                <tbody id="drawTableBody"></tbody>
+              </table>
+
+              <!-- 控制命令 -->
+              <table class="goc-cmd-table">
+                <thead>
+                  <tr>
+                    <th class="goc-col-cmd">控制命令</th>
+                    <th class="goc-col-desc">功能</th>
+                  </tr>
+                </thead>
+                <tbody id="controlTableBody"></tbody>
+              </table>
+
+              <!-- C++ 命令 -->
+              <table class="goc-cmd-table">
+                <thead>
+                  <tr>
+                    <th class="goc-col-cmd">C++命令</th>
+                    <th class="goc-col-desc">功能</th>
+                  </tr>
+                </thead>
+                <tbody id="cppTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ==================== 底部输入输出 ==================== -->
+    <footer class="goc-io-bar">
+      <div class="goc-io-block goc-io-cin">
+        <div class="goc-io-head">
+          <span class="goc-io-name">cinWin</span>
+          <span class="goc-io-tip">程序输入 · 每行一个值</span>
+        </div>
+        <textarea class="goc-io-textarea" id="cinInput" spellcheck="false"
+                  placeholder="在这里输入程序需要的输入数据，每行一个值"></textarea>
+      </div>
+
+      <div class="goc-io-block goc-io-cout">
+        <div class="goc-io-head">
+          <span class="goc-io-name">coutWin</span>
+          <span class="goc-io-tip">运行输出</span>
+          <button class="goc-io-clear" id="btnClearConsole" type="button">清空</button>
+        </div>
+        <div class="goc-io-output" id="coutOutput"></div>
+      </div>
+    </footer>
+
+    <!-- ==================== 加载遮罩 ==================== -->
+    <div class="goc-loading-overlay" id="loadingOverlay">
+      <div class="goc-loading-content">
+        <div class="goc-loading-spinner"></div>
+        <p>正在加载 GoC 编辑器...</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="./editor.js"></script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+# Magao后端项目 - 生产环境配置
+# 用于Docker部署，使用Docker服务名连接各中间件
+
+spring:
+  # 数据源配置 - MySQL 8（Docker服务名）
+  datasource:
+    url: jdbc:mysql://magao-mysql:3306/magao_platform?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
+    username: root
+    password: ${MYSQL_PASSWORD:magao_prod_2024}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 10
+      maximum-pool-size: 50
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-test-query: SELECT 1
+
+  # Redis配置 - Redis 7（Docker服务名）
+  data:
+    redis:
+      host: magao-redis
+      port: 6379
+      password: ${REDIS_PASSWORD:magao_redis_2024}
+      database: 0
+      timeout: 5000
+      lettuce:
+        pool:
+          max-active: 50
+          max-idle: 20
+          min-idle: 10
+          max-wait: 3000
+
+  # RabbitMQ配置（Docker服务名）
+  rabbitmq:
+    host: magao-rabbitmq
+    port: 5672
+    username: ${RABBITMQ_USER:admin}
+    password: ${RABBITMQ_PASSWORD:magao_mq_2024}
+    virtual-host: /
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 20
+        retry:
+          enabled: true
+          max-attempts: 5
+          initial-interval: 2000
+
+# ============================================================================
+# 存储方案选择：MinIO（自建） vs 火山引擎 TOS（云服务）
+# 二选一，启用 tos.enabled=true 时 MinIO 自动禁用
+# ============================================================================
+
+# MinIO生产环境配置（Docker服务名）- 如使用 TOS 请注释/删除此段
+#minio:
+#  enabled: false
+#  endpoint: http://magao-minio:9000
+#  access-key: ${MINIO_ACCESS_KEY:admin}
+#  secret-key: ${MINIO_SECRET_KEY:magao_minio_2024}
+#  default-bucket: magao
+
+# 火山引擎 TOS 对象存储配置（替换 MinIO）
+tos:
+  enabled: true
+  # TOS 访问端点（从火山引擎控制台获取）
+  endpoint: ${TOS_ENDPOINT:https://tos-cn-beijing.volces.com}
+  # 区域（与 endpoint 对应）
+  region: ${TOS_REGION:cn-beijing}
+  # 访问密钥
+  access-key: ${TOS_ACCESS_KEY:}
+  secret-key: ${TOS_SECRET_KEY:}
+  # 默认存储桶
+  default-bucket: ${TOS_BUCKET:magao}
+  # 文件访问域名（可选，CDN 加速后使用）
+  public-domain: ${TOS_PUBLIC_DOMAIN:}
+
+# 火山引擎 VOD 视频点播配置
+vod:
+  enabled: true
+  access-key: ${VOD_ACCESS_KEY:}
+  secret-key: ${VOD_SECRET_KEY:}
+  region: ${VOD_REGION:cn-north-1}
+  # 视频播放域名（CDN 加速域名）
+  play-domain: ${VOD_PLAY_DOMAIN:}
+  # VOD 空间名称
+  space-name: ${VOD_SPACE_NAME:magao-video}
+
+# Judge0生产环境配置（Docker服务名，3实例轮询+故障转移）
+judge0:
+  api-url: http://magao-judge0-1:2358
+  api-url-2: http://magao-judge0-2:2358
+  api-url-3: http://magao-judge0-3:2358
+  api-key: ${JUDGE0_API_KEY:prod-judge0-key}
+  timeout: 60
+
+# JWT：生产环境不提供任何默认值，未通过环境变量注入 JWT_SECRET 时启动失败。
+# 该密钥用于签名登录 Token，泄露或沿用公开默认值等于允许任意伪造身份。
+jwt:
+  secret: ${JWT_SECRET}
+
+# 生产环境关闭SQL日志
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+
+# 生产环境日志配置
+logging:
+  level:
+    com.magao.backend: info
+    com.magao.backend.module.*.mapper: warn

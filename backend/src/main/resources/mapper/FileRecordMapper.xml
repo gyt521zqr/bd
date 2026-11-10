@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.magao.backend.module.file.mapper.FileRecordMapper">
+    <sql id="baseColumns">
+        id, file_name, original_name, file_path, file_url, file_size, file_type,
+        extension, bucket, upload_user_id, biz_type, biz_id, create_time, update_time, deleted
+    </sql>
+</mapper>

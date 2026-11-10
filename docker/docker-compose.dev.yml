@@ -1,0 +1,160 @@
+version: "3.8"
+
+# ============================================================================
+# Magao Platform - 开发环境 Docker Compose 配置
+# ============================================================================
+# 使用方法:
+#   1. 复制 .env.example 为 .env 并填写开发环境配置
+#   2. docker-compose -f docker/docker-compose.dev.yml up -d
+#   3. 本地启动 backend 和 frontend（不通过 Docker）
+#
+# 说明:
+#   开发环境仅启动基础设施服务（MySQL/Redis/RabbitMQ/MinIO），
+#   后端和前端在本地 IDE 中运行，方便调试和热重载。
+# ============================================================================
+
+services:
+  # ==========================================================================
+  # MySQL 8.0 - 开发数据库（资源限制较低）
+  # ==========================================================================
+  mysql:
+    image: mysql:8.0
+    container_name: magao-dev-mysql
+    restart: unless-stopped
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-dev_root_pass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-magao_dev}
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+      MYSQL_INIT_CONNECT: "SET NAMES utf8mb4"
+      TZ: Asia/Shanghai
+    command:
+      - --max-connections=500
+      - --innodb-buffer-pool-size=512M
+      - --innodb-log-file-size=256M
+      - --innodb-flush-log-at-trx-commit=2
+      - --slow-query-log=1
+      - --long-query-time=2
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --sql-mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+    volumes:
+      - mysql_dev_data:/var/lib/mysql
+      - ../scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - magao-dev-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ==========================================================================
+  # Redis 7 - 开发缓存（资源限制较低）
+  # ==========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: magao-dev-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command:
+      - redis-server
+      - --maxmemory 512mb
+      - --maxmemory-policy allkeys-lru
+      - --appendonly yes
+      - --appendfsync everysec
+      - --requirepass ${REDIS_PASSWORD:-dev_redis_pass}
+      - --bind 0.0.0.0
+      - --protected-mode no
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - magao-dev-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-dev_redis_pass}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # ==========================================================================
+  # RabbitMQ 3.12 - 开发消息队列
+  # ==========================================================================
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: magao-dev-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-dev_rabbitmq_pass}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-magao_dev}
+      TZ: Asia/Shanghai
+    volumes:
+      - rabbitmq_dev_data:/var/lib/rabbitmq
+    networks:
+      - magao-dev-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ==========================================================================
+  # MinIO - 开发对象存储
+  # ==========================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: magao-dev-minio
+    restart: unless-stopped
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-dev_minio_pass}
+      TZ: Asia/Shanghai
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_dev_data:/data
+    networks:
+      - magao-dev-network
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+# ============================================================================
+# 网络配置
+# ============================================================================
+networks:
+  magao-dev-network:
+    name: magao-dev-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.29.0.0/16
+          gateway: 172.29.0.1
+
+# ============================================================================
+# 数据卷配置
+# ============================================================================
+volumes:
+  mysql_dev_data:
+    name: magao-dev-mysql-data
+  redis_dev_data:
+    name: magao-dev-redis-data
+  rabbitmq_dev_data:
+    name: magao-dev-rabbitmq-data
+  minio_dev_data:
+    name: magao-dev-minio-data

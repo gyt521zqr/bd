@@ -1,0 +1,1 @@
+import{e as r,j as a,S as o}from"./index-CN52DKLq.js";async function n(e){try{return await r.get("/categories",{params:e})}catch{const t=a(o.CATEGORIES,null);return t?{code:200,data:t}:null}}function s(e){return r.post("/categories",e)}function u(e,t){return r.put(`/categories/${e}`,t)}function i(e){return r.delete(`/categories/${e}`)}export{s as c,i as d,n as g,u};

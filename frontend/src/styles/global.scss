@@ -1,0 +1,195 @@
+/**
+ * 全局样式
+ * 包含浏览器兼容性前缀、表单错误提示样式、基础重置
+ */
+
+// ====== 浏览器兼容性前缀注释 ======
+// 如需支持旧版浏览器，请安装 postcss-preset-env：
+// npm install postcss-preset-env -D
+// 并在 vite.config.ts 中配置：
+// css: { postcss: { plugins: [require('postcss-preset-env')()] } }
+//
+// 支持的浏览器范围：
+// - Chrome >= 60
+// - Firefox >= 60
+// - Safari >= 12
+// - Edge >= 79
+// - iOS Safari >= 12
+// ======
+
+// ====== 基础重置 ======
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #1D2129;
+  background: #F7F8FA;
+  min-width: 320px;
+  overflow-x: hidden;
+}
+
+// ====== 链接样式 ======
+a {
+  color: #165DFF;
+  text-decoration: none;
+  transition: color 0.2s ease;
+
+  &:hover {
+    color: #4080FF;
+  }
+}
+
+// ====== 图片懒加载占位 ======
+img[data-lazy] {
+  background: linear-gradient(90deg, #F2F3F5 25%, #E5E6EB 50%, #F2F3F5 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+// ====== 统一表单错误提示样式 ======
+// Element Plus 表单错误提示增强
+.el-form-item__error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #F53F3F;
+  padding-top: 4px;
+  line-height: 1.4;
+
+  &::before {
+    content: '';
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23F53F3F' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-repeat: no-repeat;
+    flex-shrink: 0;
+  }
+}
+
+// 表单输入框错误状态边框
+.el-form-item.is-error {
+  .el-input__wrapper {
+    box-shadow: 0 0 0 1px #F53F3F inset !important;
+  }
+
+  .el-textarea__inner {
+    box-shadow: 0 0 0 1px #F53F3F !important;
+  }
+}
+
+// ====== 触控区域规范 ======
+// 确保移动端按钮触控区域不小于 44px
+button,
+.el-button,
+.el-radio-button__inner,
+.el-checkbox__input,
+.nav-link,
+.mobile-nav-link {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+// 小型按钮例外
+.el-button--small,
+.el-button--mini {
+  min-height: 32px;
+  min-width: auto;
+}
+
+// ====== 字体大小规范 ======
+// 确保移动端字体不小于 14px
+body,
+.el-input__inner,
+.el-textarea__inner,
+.el-form-item__label,
+.el-radio__label,
+.el-checkbox__label,
+.el-select .el-input__inner,
+.nav-link,
+.mobile-nav-link {
+  font-size: 14px;
+}
+
+// ====== 滚动条样式（Webkit） ======
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #C9CDD4;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #86909C;
+}
+
+// ====== 响应式辅助类 ======
+.hide-mobile {
+  @media (max-width: 768px) {
+    display: none !important;
+  }
+}
+
+.hide-desktop {
+  @media (min-width: 769px) {
+    display: none !important;
+  }
+}
+
+// ====== 页面最大宽度约束 ======
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+
+  @media (max-width: 768px) {
+    padding: 0 16px;
+  }
+}
+
+// ====== 防止横向溢出 ======
+html, body {
+  overflow-x: hidden;
+}
+
+// ====== 打印样式优化 ======
+@media print {
+  .app-header,
+  .app-footer,
+  .customer-service,
+  .mobile-drawer,
+  .mobile-overlay {
+    display: none !important;
+  }
+}

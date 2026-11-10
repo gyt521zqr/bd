@@ -26,6 +26,13 @@ check_route() {
 
 echo "===== 契约校验 @ $BASE ====="
 
+echo "-- 站点公开配置 / CMS（前台游客可访问，勿误加鉴权）--"
+check_route GET  "/api/system/site-config"             "站点公开配置"
+check_route GET  "/api/system/notices"                 "系统公告列表"
+check_route GET  "/api/system/config/register_enabled" "配置键值/功能开关"
+check_route GET  "/api/banner"                         "首页Banner(公开)"
+check_route GET  "/api/homepage/config"                "首页配置(公开)"
+
 echo "-- 考试模块（应与前端 src/api/exam.ts 对齐）--"
 check_route GET  "/api/exam/list"            "考试列表"
 check_route GET  "/api/exam/records"         "我的考试记录"
@@ -104,6 +111,41 @@ done
 
 echo "-- 系统设置写操作（PUT /api/admin/settings upsert 扁平 KV）--"
 check_route PUT    "/api/admin/settings"           "保存系统设置"
+
+echo "-- 认证/用户账户（Phase 0：对齐前端 src/api/user.ts 注册/改密/资料/绑家长）--"
+check_route POST "/api/auth/register"        "用户注册"
+check_route PUT  "/api/user/password"        "修改密码"
+check_route PUT  "/api/user/info"            "更新资料"
+check_route POST "/api/user/bind-parent"     "绑定家长手机号"
+
+echo "-- Phase 1 课程/练习/竞赛（对齐前端 course.ts/practice.ts/competition.ts）--"
+check_route POST "/api/course/purchase"        "购买课程"
+check_route POST "/api/course/progress"        "学习进度"
+check_route GET  "/api/course/categories"      "课程分类(公开)"
+check_route GET  "/api/course/video/1/play"    "课程视频播放"
+check_route GET  "/api/practice/detail/1"      "练习详情(段序)"
+check_route GET  "/api/practice/records"       "提交记录"
+check_route GET  "/api/practice/result/1"      "提交结果"
+check_route GET  "/api/practice/tags"          "题目标签"
+check_route GET  "/api/competition/detail/1"   "竞赛详情(段序)"
+check_route POST "/api/competition/submit"     "提交作品(无id)"
+check_route GET  "/api/competition/1/results"  "竞赛成绩"
+
+echo "-- Phase 3 消息/营销/VOD（对齐前端 message.ts/marketing.ts/vod.ts）--"
+check_route PUT  "/api/message/read-all"        "全部已读"
+check_route DELETE "/api/message/1"             "删除消息"
+check_route GET  "/api/marketing/membership/plans" "会员套餐"
+check_route POST "/api/marketing/membership/purchase" "购买会员"
+check_route POST "/api/marketing/coupons/1/receive" "领取优惠券(路径)"
+check_route GET  "/api/marketing/coupons/available" "可用优惠券"
+check_route POST "/api/vod/upload-auth"         "VOD上传凭证"
+check_route POST "/api/vod/refresh-upload-auth" "VOD刷新凭证"
+check_route GET  "/api/vod/play-info/1"         "VOD播放信息"
+check_route POST "/api/vod/batch-play-info"     "VOD批量播放"
+check_route GET  "/api/vod/list"                "VOD列表"
+check_route DELETE "/api/vod/1"                 "VOD删除"
+check_route GET  "/api/vod/play-auth/1"         "VOD播放凭证"
+check_route GET  "/api/vod/transcode-status/1"  "VOD转码状态"
 
 echo "-- 分页信封（公开列表应含 list 字段）--"
 LIST_FIELD=$(curl -s -m 8 "$BASE/api/news?page=1&size=1" | grep -o '"list"' | head -1)

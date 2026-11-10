@@ -1,0 +1,1 @@
+import{e}from"./index-CN52DKLq.js";function o(t){return e.get("/growth/points/records",{params:t})}function n(){return e.get("/growth/medals")}function g(){return e.get("/growth/level")}function a(t){return e.get("/growth/leaderboard",{params:t})}export{n as a,o as b,a as c,g};

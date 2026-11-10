@@ -2,7 +2,9 @@ package com.magao.backend.module.admin.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.magao.backend.common.annotation.RequireRole;
 import com.magao.backend.common.base.BaseController;
+import com.magao.backend.common.enums.UserRoleEnum;
 import com.magao.backend.common.dto.PageDTO;
 import com.magao.backend.common.result.Result;
 import com.magao.backend.module.cms.entity.Banner;
@@ -74,6 +76,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
+// 后台聚合接口至少需要一个后台角色，普通学生不得读取管理端数据
+@RequireRole({UserRoleEnum.ADMIN, UserRoleEnum.TEACHER, UserRoleEnum.OPERATOR})
 public class AdminController extends BaseController {
 
     private final UserMapper userMapper;
@@ -239,6 +243,7 @@ public class AdminController extends BaseController {
 
     @Operation(summary = "系统设置（扁平 KV 映射）")
     @GetMapping("/settings")
+    @RequireRole({UserRoleEnum.ADMIN})
     public Result<Map<String, Object>> settings() {
         List<SysConfig> all = sysConfigMapper.selectList(null);
         Map<String, Object> map = new LinkedHashMap<>();
@@ -250,6 +255,7 @@ public class AdminController extends BaseController {
 
     @Operation(summary = "保存系统设置（扁平 KV upsert）")
     @PutMapping("/settings")
+    @RequireRole({UserRoleEnum.ADMIN})
     public Result<Void> saveSettings(@RequestBody Map<String, Object> body) {
         if (body != null) {
             for (Map.Entry<String, Object> e : body.entrySet()) {

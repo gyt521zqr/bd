@@ -96,11 +96,13 @@
 
 | 模块 | 后端状态 | 主要缺口 |
 |---|---|---|
-| 用户/认证 | 基本对齐 | 缺 `/user/password`、`/user/info`、`/user/bind-parent`、`/auth/register` |
-| 课程 | 对齐 | 缺 `/course/purchase` |
-| 练习 | 对齐 | 缺 `/practice/records`、`/practice/result/{id}`、`/practice/tags` |
-| 竞赛 | 段序待修 | `/competition/submit` 缺 id 段；缺 `/competition/{id}/results` |
-| 消息 | 对齐 | 缺 `/message/read-all`、DELETE `/message/{id}` |
+| 用户/认证 | ✅ 已补齐(Phase 0) | 新增 `POST /auth/register`（短信验证码注册→自动 STUDENT 角色）、`PUT /user/password`、`PUT /user/info`、`POST /user/bind-parent`；`sendSmsCode` 放开"仅存量用户"限制以支持注册发码；`sys_user` 新增 `parent_phone` 列（迁移脚本 `scripts/sql/add_parent_phone.sql`） |
+| 课程 | ✅ 已补齐(Phase 1) | 新增 `POST /course/purchase`（复用支付订单，返回 orderId）、`POST /course/progress`（video_progress 落地）、`GET /course/categories`（复用 cms 分类 type=course）、`GET /course/video/{id}/play`（返回真实 videoUrl 供播放） |
+| 练习 | ✅ 已补齐(Phase 1) | 新增 `GET /practice/detail/{id}`（段序别名）、`POST /practice/submit`（改为 `@RequestBody` JSON 绑定，对齐 submitCode）、`GET /practice/records`（当前用户分页）、`GET /practice/result/{id}`（映射 SubmitResult）、`GET /practice/tags`（返回标签数组） |
+| 竞赛 | ✅ 已补齐(Phase 1) | 新增 `GET /competition/detail/{id}`（段序别名）、`POST /competition/submit`（无 id 段，competitionId 取自 body）、`GET /competition/{id}/results`（排行榜映射前端 CompetitionRanking 形状：rank/nickname/avatar/score/submitTime/timeUsed） |
+| 消息 | ✅ 已补齐(Phase 3) | 新增 `PUT /message/read-all`、`DELETE /message/{id}`（仅本人），`MessageService` 增加 `markAllRead`/`deleteMessage` |
+| 营销 | ✅ 已补齐(Phase 3) | 新增 `GET /marketing/membership/plans`（对齐前端）、`POST /marketing/membership/purchase`（创建会员订单）、`POST /marketing/coupons/{couponId}/receive`（路径对齐）、`GET /marketing/coupons/available`（可用优惠券，映射 CouponItem）；保留原 `/memberships`、`/coupon/receive`、`/coupons` 兼容 |
+| VOD | ✅ 已重构(Phase 3) | 原 `VodController` 带 `@ConditionalOnProperty(vod.enabled=true)` 且路径与前端不符 → 全部 404。已改为**自包含**、去掉条件注解、对齐前端 `vod.ts` 全部路径（upload-auth/refresh-upload-auth/play-info/batch-play-info/list/play-auth/transcode-status/{id}），未配置火山引擎时返回占位/空数据（保证路由命中、页面可渲染）。课程视频真实播放走 `GET /course/video/{id}/play` |
 | 支付 | ✅ 已补齐 | 新增 `PaymentController`（`/api/payment/*`）对齐前端 7 端点；复用既有 `pay_order`/`pay_refund` 表与 `OrderService`，VO 枚举转换（productType/status/payMethod 字符串↔整数），支付/退款状态机完整 |
 | 成长积分 | ✅ 已补齐 | 新增 `GrowthController`（`/api/growth/*`）对齐前端 6 端点；复用既有 `user_point`/`point_log`/`medal`/`user_medal`/`user_level` 表与 `GrowthService`，并补 `seed_growth.sql` 演示数据 |
 | OSS 对象存储 | ✅ 已补齐 | 7 端点全部对齐 `src/api/oss.ts`；复用 file 模块 `FileService`（本地存储），新增 `/api/oss/raw/{id}` 公共读取（已双白名单放行） |
@@ -151,7 +153,11 @@
 - **字段映射待细化**：course/class/exam/question/registration/paper/score/practice/file/plan/coupon 前端列名与后端实体字段名存在不一致（多为实体缺字段或命名差异）。当前桥接层已按"后端优先、失败回退 mock"接通，真实数据可显示部分字段；要全部列正确显示需在后端补 VO/转换或在 `admin.ts` 增加前端适配层。此为显示层优化，不阻塞功能。
 - **学员/教师/账号写操作已落库（2026-10-31 修复）**：`AdminWriteController` 新增 12 个写端点（student/teacher/account 各 create/update/delete/batch-delete），共用 `sys_user` 表，按路径决定 `roleType`（STUDENT/TEACHER），account 由 DTO.roleType 决定（ADMIN/OPERATOR）；密码用与登录一致的 `CryptoUtil.md5WithSalt(pwd, "magao_salt_2024")` 哈希（空密码默认 123456，更新仅非空密码重算），不破坏登录体系；`buildUser` 已改为"仅写入非空 DTO 字段"，局部更新（如仅切状态/仅重置密码）不会把昵称/手机等列置空。富档案字段（学员 school/grade/memberStatus、教师 subject/title/intro/permissions 等）后端无独立表，仍本地展示，属已知缺口，不影响核心身份落库。
 - **config/system 页评估（2026-10-31）**：9 页中仅 `SystemSettingsPage` 有后端形态——其原 `GET /admin/settings` 返回 `List<SysConfig>`（与前端期望扁平对象不匹配）且无写接口；已改为 `GET` 返回扁平 KV 映射 + 新增 `PUT /admin/settings` upsert（复用 `SystemService.setConfigValue`，值按类型反序列化布尔/数值/字符串）。其余 8 页（regcode/trial/homepage-config/about-config/storage-config/data-backup/operation-log/system-monitor）为运维/监控/本地配置类，无对应 CRUD 表，维持本地 mock/localStorage，不接桥接层。
-- **contract-check.sh 已同步**：新增 student/teacher/account 四类写路由 + `PUT /admin/settings` 校验项（共约 109 项），运行 `bash scripts/contract-check.sh` 应 0 漂移。
+- **Phase 0 用户/账户闭环（2026-11-08 修复）**：`AuthController` 新增 `POST /auth/register`（校验短信验证码→写入 `sys_user`，角色 STUDENT，密码用 `CryptoUtil.md5WithSalt(pwd,"magao_salt_2024")` 与登录同款哈希）；`UserController` 新增 `PUT /user/password`（复用既有 `UserService.changePassword`）、`PUT /user/info`（部分字段更新，仅非空列）、`POST /user/bind-parent`（写 `parent_phone`）；`sendSmsCode` 移除"用户必须已存在"校验，使新手机号可注册发码。新增 DTO：`RegisterDTO`/`PasswordChangeDTO`/`UserInfoUpdateDTO`/`BindParentDTO`。`sys_user` 增加 `parent_phone` 列（`schema_init.sql` 已含，存量库用 `scripts/sql/add_parent_phone.sql` 幂等迁移）。前端 `src/api/user.ts` 的 4 个调用现已全部对后端路由。
+- **contract-check.sh 已同步**：含 student/teacher/account 写路由、`PUT /admin/settings`、Phase 0 四路由，现共约 149 项（新增 Phase 1 课程/练习/竞赛 11 项 + Phase 3 消息/营销/VOD 12 项），运行 `bash scripts/contract-check.sh` 应 0 漂移。
+- **Phase 1 课程/练习/竞赛（2026-11-08 修复）**：改后端对齐前端（前端零改动）。课程补 `/purchase`（复用 `OrderService.createOrderFrontend(userId,"course",courseId,couponId)` 返回 orderId）、`/progress`（落 `video_progress`，watchedDuration+isCompleted）、`/categories`（复用 cms `CategoryService.listByType("course")`，返回 `{id,name,icon}`）、`/video/{id}/play`（返回 `CourseVideo.videoUrl` 真实播放地址）。练习补 `/detail/{id}` 段序别名、`/submit` 改 `@RequestBody` JSON、`/records`、`/result/{id}`（映射 SubmitResult）、`/tags`（固定标签数组）。竞赛补 `/detail/{id}` 段序别名、`/submit` 无 id 段（competitionId 取自 body）、`/{id}/results`（排行榜映射前端形状）。相关表 `video_progress`/`course_purchase` 已在 `schema_init.sql`，存量库用 `scripts/sql/add_phase1_tables.sql` 幂等补齐。
+- **Phase 3 消息/营销/VOD（2026-11-08 修复）**：消息补 `PUT /message/read-all`、`DELETE /message/{id}`（仅本人，Service 增 `markAllRead`/`deleteMessage`）。营销补 `GET /marketing/membership/plans`、`POST /marketing/membership/purchase`（会员订单）、`POST /marketing/coupons/{couponId}/receive`、`GET /marketing/coupons/available`（映射 CouponItem，过滤 status=1 且未过期）。VOD 重写为自包含、去掉 `@ConditionalOnProperty`，对齐前端全部路径，未配置火山引擎时返回占位/空（保证路由命中、应用可启动）；**已知限制**：真实云端 VOD（上传/转码/加密播放）需 `vod.enabled=true` + 火山 AccessKey/SecretKey/SpaceName，接入后可将占位逻辑替换为 `VodService` 实现。课程视频真实播放不受影响（走 `/course/video/{id}/play`）。
+- **遗留跟随项（非阻塞）**：①课程购买仅创建订单，支付成功后的"报名/入学"写 `course_purchase` 需在 `OrderService.payOrder` 成功后挂钩（当前订单流已闭环，入学绑定为增强项）；②`/practice/tags` 为固定标签数组（题库未维护 tags 列），如需动态标签可后续给 `practice_question` 加 `tags` 列。
 
 ---
 

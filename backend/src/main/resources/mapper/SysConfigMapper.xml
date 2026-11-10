@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.magao.backend.module.system.mapper.SysConfigMapper">
+    <sql id="baseColumns">
+        id, config_key, config_value, description, config_group, create_time, update_time, deleted
+    </sql>
+</mapper>

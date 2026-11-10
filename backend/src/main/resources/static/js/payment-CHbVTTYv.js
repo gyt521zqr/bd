@@ -1,0 +1,1 @@
+import{e}from"./index-CN52DKLq.js";function n(r){return e.post("/payment/order/create",r)}function a(r){return e.get("/payment/order/list",{params:r})}function c(r){return e.post("/payment/pay",r)}function o(r){return e.put(`/payment/order/${r}/cancel`)}export{n as a,o as c,a as g,c as p};

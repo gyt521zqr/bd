@@ -1,0 +1,26 @@
+# Judge0 评测引擎（本地开发单机部署）
+# 使用 Judge0 CE 单容器镜像（内置 worker + 沙箱），需挂载宿主机 Docker socket 并 privileged。
+# 启动：docker compose -f docker/judge0/docker-compose.yml up -d
+# 停止：docker compose -f docker/judge0/docker-compose.yml down
+# 验证：curl http://localhost:2358/   -> 返回 Judge0 版本信息
+#
+# 后端对接（application-dev.yml 中的 judge0.api-url = http://localhost:2358）
+# 生产环境请使用 docker/docker-compose.yml 内置的 3 实例集群（judge0-1/2/3）。
+services:
+  judge0:
+    image: judge0/judge0-ce:latest
+    container_name: magao-judge0
+    privileged: true
+    ports:
+      - "2358:2358"
+    environment:
+      ENABLE_NETWORK: "false"
+      CPU_TIME_LIMIT: 5
+      MEMORY_LIMIT: 262144
+      EXTRA_POOL_SIZE: 30
+      RUNNER_USER_ID: 65534
+      RUNNER_GROUP_ID: 65534
+      TZ: Asia/Shanghai
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped

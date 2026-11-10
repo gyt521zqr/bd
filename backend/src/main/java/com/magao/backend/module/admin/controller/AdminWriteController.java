@@ -1,7 +1,9 @@
 package com.magao.backend.module.admin.controller;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.magao.backend.common.annotation.RequireRole;
 import com.magao.backend.common.base.BaseEntity;
+import com.magao.backend.common.enums.UserRoleEnum;
 import com.magao.backend.common.result.Result;
 import com.magao.backend.common.util.CryptoUtil;
 import com.magao.backend.module.cms.entity.Banner;
@@ -76,6 +78,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
+// 全部为增删改写接口：仅后台角色可调用，普通学生不得越权写入
+@RequireRole({UserRoleEnum.ADMIN, UserRoleEnum.TEACHER, UserRoleEnum.OPERATOR})
 public class AdminWriteController {
 
     private final CourseMapper courseMapper;

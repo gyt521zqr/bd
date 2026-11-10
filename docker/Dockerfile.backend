@@ -1,0 +1,69 @@
+# ============================================================================
+# Magao Platform - Backend 多阶段构建 Dockerfile
+# ============================================================================
+# Stage 1: Maven 编译打包
+# Stage 2: Eclipse Temurin JDK 17 运行时
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# Stage 1: 构建阶段 - Maven 编译
+# ---------------------------------------------------------------------------
+FROM maven:3.9-eclipse-temurin-17 AS builder
+
+WORKDIR /build
+
+# 先复制 pom.xml，利用 Docker 缓存层加速依赖下载
+COPY backend/pom.xml .
+RUN mvn dependency:go-offline -B
+
+# 复制源代码并编译打包
+COPY backend/ .
+RUN mvn clean package -DskipTests -B \
+    && ls -la target/*.jar
+
+# ---------------------------------------------------------------------------
+# Stage 2: 运行阶段 - JDK 17
+# ---------------------------------------------------------------------------
+FROM eclipse-temurin:17-jre-alpine
+
+LABEL maintainer="Magao Platform Team"
+LABEL description="Magao Platform Backend Service"
+
+# 安装必要工具
+RUN apk add --no-cache \
+    curl \
+    tzdata \
+    fontconfig \
+    ttf-dejavu \
+    && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo "Asia/Shanghai" > /etc/timezone \
+    && apk del tzdata
+
+# 创建应用用户（安全最佳实践）
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# 创建应用目录
+WORKDIR /app
+
+# 从构建阶段复制 JAR 包
+COPY --from=builder /build/target/*.jar app.jar
+
+# 创建日志和上传目录
+RUN mkdir -p /app/logs /app/uploads \
+    && chown -R appuser:appgroup /app
+
+# 切换到非 root 用户
+USER appuser
+
+# 暴露端口
+EXPOSE 8080
+
+# JVM 参数通过环境变量 JAVA_OPTS 注入
+ENV JAVA_OPTS=""
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=120s \
+    CMD curl -f http://localhost:8080/actuator/health || exit 1
+
+# 启动命令
+ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -jar app.jar"]

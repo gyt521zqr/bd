@@ -1,0 +1,1428 @@
+-- ============================================================================
+-- Magao Platform - 魔高少儿编程教育平台 数据库初始化脚本
+-- ============================================================================
+-- 数据库版本: MySQL 8.0+
+-- 字符集: utf8mb4
+-- 排序规则: utf8mb4_unicode_ci
+-- 引擎: InnoDB
+-- 总计: 48张表
+-- 创建日期: 2026-06-17
+-- 说明: 本脚本包含完整的建表语句、索引定义及初始化测试数据
+-- ============================================================================
+
+-- 创建数据库
+DROP DATABASE IF EXISTS `magao_platform`;
+CREATE DATABASE `magao_platform` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE `magao_platform`;
+
+-- ============================================================================
+-- [模块一] 用户中心 (6张表)
+-- 表清单: sys_user, sys_role, sys_user_role, sys_permission,
+--          sys_role_permission, sys_user_login_log
+-- ============================================================================
+
+-- ----------------------------
+-- 1. sys_user 用户表
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_user`;
+CREATE TABLE `sys_user` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '用户ID',
+    `username` VARCHAR(50) NOT NULL COMMENT '用户名',
+    `password` VARCHAR(255) NOT NULL COMMENT '密码(BCrypt加密)',
+    `nickname` VARCHAR(100) DEFAULT NULL COMMENT '昵称',
+    `avatar` VARCHAR(500) DEFAULT NULL COMMENT '头像URL',
+    `email` VARCHAR(100) DEFAULT NULL COMMENT '邮箱',
+    `phone` VARCHAR(20) DEFAULT NULL COMMENT '手机号',
+    `real_name` VARCHAR(50) DEFAULT NULL COMMENT '真实姓名',
+    `role_type` VARCHAR(20) NOT NULL DEFAULT 'STUDENT' COMMENT '角色类型: STUDENT-学生, TEACHER-教师, OPERATOR-运营, ADMIN-管理员',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-禁用, 1-启用',
+    `last_login_ip` VARCHAR(50) DEFAULT NULL COMMENT '最后登录IP',
+    `last_login_time` DATETIME DEFAULT NULL COMMENT '最后登录时间',
+    `wechat_open_id` VARCHAR(100) DEFAULT NULL COMMENT '微信OpenID',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_username` (`username`),
+    UNIQUE KEY `uk_phone` (`phone`),
+    UNIQUE KEY `uk_email` (`email`),
+    KEY `idx_role_type` (`role_type`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
+
+-- ----------------------------
+-- 2. sys_role 角色表
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_role`;
+CREATE TABLE `sys_role` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '角色ID',
+    `role_name` VARCHAR(50) NOT NULL COMMENT '角色名称',
+    `role_code` VARCHAR(50) NOT NULL COMMENT '角色编码(唯一)',
+    `description` VARCHAR(200) DEFAULT NULL COMMENT '角色描述',
+    `sort_order` INT NOT NULL DEFAULT 0 COMMENT '排序号',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-禁用, 1-启用',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_role_code` (`role_code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='角色表';
+
+-- ----------------------------
+-- 3. sys_user_role 用户角色关联表
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_user_role`;
+CREATE TABLE `sys_user_role` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `role_id` BIGINT NOT NULL COMMENT '角色ID',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_role` (`user_id`, `role_id`),
+    KEY `idx_role_id` (`role_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户角色关联表';
+
+-- ----------------------------
+-- 4. sys_permission 权限表
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_permission`;
+CREATE TABLE `sys_permission` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '权限ID',
+    `parent_id` BIGINT NOT NULL DEFAULT 0 COMMENT '父级ID, 0表示顶级',
+    `permission_name` VARCHAR(50) NOT NULL COMMENT '权限名称',
+    `permission_type` TINYINT NOT NULL COMMENT '类型: 1-菜单, 2-按钮, 3-接口',
+    `permission_code` VARCHAR(100) DEFAULT NULL COMMENT '权限编码',
+    `path` VARCHAR(200) DEFAULT NULL COMMENT '路由路径',
+    `icon` VARCHAR(100) DEFAULT NULL COMMENT '图标',
+    `component` VARCHAR(200) DEFAULT NULL COMMENT '组件路径',
+    `sort_order` INT NOT NULL DEFAULT 0 COMMENT '排序号',
+    `visible` TINYINT NOT NULL DEFAULT 1 COMMENT '是否可见: 0-隐藏, 1-显示',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-禁用, 1-启用',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_parent_id` (`parent_id`),
+    KEY `idx_permission_type` (`permission_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='权限表';
+
+-- ----------------------------
+-- 5. sys_role_permission 角色权限关联表
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_role_permission`;
+CREATE TABLE `sys_role_permission` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `role_id` BIGINT NOT NULL COMMENT '角色ID',
+    `permission_id` BIGINT NOT NULL COMMENT '权限ID',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_role_permission` (`role_id`, `permission_id`),
+    KEY `idx_permission_id` (`permission_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='角色权限关联表';
+
+-- ----------------------------
+-- 6. sys_user_login_log 登录日志表
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_user_login_log`;
+CREATE TABLE `sys_user_login_log` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '日志ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `username` VARCHAR(50) NOT NULL COMMENT '登录用户名',
+    `login_ip` VARCHAR(50) DEFAULT NULL COMMENT '登录IP地址',
+    `login_location` VARCHAR(100) DEFAULT NULL COMMENT '登录地点',
+    `device_type` VARCHAR(20) DEFAULT NULL COMMENT '设备类型: PC, MOBILE, TABLET',
+    `browser` VARCHAR(50) DEFAULT NULL COMMENT '浏览器',
+    `os` VARCHAR(50) DEFAULT NULL COMMENT '操作系统',
+    `login_result` TINYINT NOT NULL COMMENT '登录结果: 0-失败, 1-成功',
+    `fail_reason` VARCHAR(200) DEFAULT NULL COMMENT '失败原因',
+    `login_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '登录时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_login_time` (`login_time`),
+    KEY `idx_login_result` (`login_result`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='登录日志表';
+
+
+-- ============================================================================
+-- [模块二] 课程模块 (7张表)
+-- 表清单: course_info, course_chapter, course_video, course_purchase,
+--          video_comment, video_progress, video_danmaku
+-- ============================================================================
+
+-- ----------------------------
+-- 7. course_info 课程表
+-- ----------------------------
+DROP TABLE IF EXISTS `course_info`;
+CREATE TABLE `course_info` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '课程ID',
+    `title` VARCHAR(200) NOT NULL COMMENT '课程标题',
+    `cover` VARCHAR(500) DEFAULT NULL COMMENT '课程封面URL',
+    `description` TEXT DEFAULT NULL COMMENT '课程描述',
+    `teacher_id` BIGINT NOT NULL COMMENT '授课教师ID',
+    `language_type` VARCHAR(20) NOT NULL COMMENT '编程语言: SCRATCH_JR, SCRATCH3, PYTHON, CPP, GOC',
+    `difficulty` TINYINT NOT NULL DEFAULT 1 COMMENT '难度等级: 1-入门, 2-基础, 3-进阶, 4-高级',
+    `min_age` INT DEFAULT NULL COMMENT '适合最小年龄',
+    `max_age` INT DEFAULT NULL COMMENT '适合最大年龄',
+    `price` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '售价(元)',
+    `original_price` DECIMAL(10,2) DEFAULT NULL COMMENT '原价(元)',
+    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '状态: 0-草稿, 1-已发布, 2-已下架',
+    `trial_chapter_count` INT NOT NULL DEFAULT 0 COMMENT '试看章节数',
+    `total_chapters` INT NOT NULL DEFAULT 0 COMMENT '总章节数',
+    `total_duration` INT NOT NULL DEFAULT 0 COMMENT '总时长(秒)',
+    `student_count` INT NOT NULL DEFAULT 0 COMMENT '学习人数',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_teacher_id` (`teacher_id`),
+    KEY `idx_language_type` (`language_type`),
+    KEY `idx_status` (`status`),
+    KEY `idx_difficulty` (`difficulty`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='课程表';
+
+-- ----------------------------
+-- 8. course_chapter 章节表
+-- ----------------------------
+DROP TABLE IF EXISTS `course_chapter`;
+CREATE TABLE `course_chapter` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '章节ID',
+    `course_id` BIGINT NOT NULL COMMENT '课程ID',
+    `parent_id` BIGINT NOT NULL DEFAULT 0 COMMENT '父级章节ID, 0表示顶级',
+    `title` VARCHAR(200) NOT NULL COMMENT '章节标题',
+    `description` VARCHAR(500) DEFAULT NULL COMMENT '章节描述',
+    `sort_order` INT NOT NULL DEFAULT 0 COMMENT '排序号',
+    `is_trial` TINYINT NOT NULL DEFAULT 0 COMMENT '是否试看: 0-否, 1-是',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_course_id` (`course_id`),
+    KEY `idx_parent_id` (`parent_id`),
+    KEY `idx_course_parent` (`course_id`, `parent_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='章节表';
+
+-- ----------------------------
+-- 9. course_video 视频表
+-- ----------------------------
+DROP TABLE IF EXISTS `course_video`;
+CREATE TABLE `course_video` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '视频ID',
+    `chapter_id` BIGINT NOT NULL COMMENT '章节ID',
+    `course_id` BIGINT NOT NULL COMMENT '课程ID',
+    `title` VARCHAR(200) NOT NULL COMMENT '视频标题',
+    `original_url` VARCHAR(1000) DEFAULT NULL COMMENT '原始视频URL',
+    `hls_playlist_url` VARCHAR(1000) DEFAULT NULL COMMENT 'HLS播放列表URL',
+    `encrypt_key` VARCHAR(255) DEFAULT NULL COMMENT '加密密钥',
+    `duration` INT NOT NULL DEFAULT 0 COMMENT '视频时长(秒)',
+    `cover` VARCHAR(500) DEFAULT NULL COMMENT '视频封面URL',
+    `transcode_status` TINYINT NOT NULL DEFAULT 0 COMMENT '转码状态: 0-待转码, 1-转码中, 2-已完成, 3-失败',
+    `sort_order` INT NOT NULL DEFAULT 0 COMMENT '排序号',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_chapter_id` (`chapter_id`),
+    KEY `idx_course_id` (`course_id`),
+    KEY `idx_transcode_status` (`transcode_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='视频表';
+
+-- ----------------------------
+-- 10. course_purchase 购买记录表
+-- ----------------------------
+DROP TABLE IF EXISTS `course_purchase`;
+CREATE TABLE `course_purchase` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '购买记录ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `course_id` BIGINT NOT NULL COMMENT '课程ID',
+    `purchase_type` TINYINT NOT NULL DEFAULT 1 COMMENT '购买类型: 1-单独购买, 2-会员开通, 3-团购, 4-兑换',
+    `order_id` BIGINT DEFAULT NULL COMMENT '关联订单ID',
+    `price` DECIMAL(10,2) NOT NULL COMMENT '购买价格',
+    `expire_time` DATETIME DEFAULT NULL COMMENT '过期时间(会员/团购有效)',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_course` (`user_id`, `course_id`),
+    KEY `idx_course_id` (`course_id`),
+    KEY `idx_order_id` (`order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='课程购买记录表';
+
+-- ----------------------------
+-- 11. video_comment 视频评论表
+-- ----------------------------
+DROP TABLE IF EXISTS `video_comment`;
+CREATE TABLE `video_comment` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '评论ID',
+    `video_id` BIGINT NOT NULL COMMENT '视频ID',
+    `user_id` BIGINT NOT NULL COMMENT '评论用户ID',
+    `parent_id` BIGINT NOT NULL DEFAULT 0 COMMENT '父评论ID, 0表示顶级评论',
+    `content` TEXT NOT NULL COMMENT '评论内容',
+    `like_count` INT NOT NULL DEFAULT 0 COMMENT '点赞数',
+    `reply_count` INT NOT NULL DEFAULT 0 COMMENT '回复数',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_video_id` (`video_id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_parent_id` (`parent_id`),
+    KEY `idx_video_create` (`video_id`, `create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='视频评论表';
+
+-- ----------------------------
+-- 12. video_progress 学习进度表
+-- ----------------------------
+DROP TABLE IF EXISTS `video_progress`;
+CREATE TABLE `video_progress` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '进度ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `video_id` BIGINT NOT NULL COMMENT '视频ID',
+    `course_id` BIGINT NOT NULL COMMENT '课程ID',
+    `watched_duration` INT NOT NULL DEFAULT 0 COMMENT '已观看时长(秒)',
+    `total_duration` INT NOT NULL DEFAULT 0 COMMENT '视频总时长(秒)',
+    `progress_percent` DECIMAL(5,2) NOT NULL DEFAULT 0.00 COMMENT '进度百分比',
+    `is_completed` TINYINT NOT NULL DEFAULT 0 COMMENT '是否完成: 0-未完成, 1-已完成',
+    `last_watch_time` DATETIME DEFAULT NULL COMMENT '最后观看时间',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_video` (`user_id`, `video_id`),
+    KEY `idx_course_id` (`course_id`),
+    KEY `idx_user_course` (`user_id`, `course_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='视频学习进度表';
+
+-- ----------------------------
+-- 13. video_danmaku 弹幕记录表
+-- ----------------------------
+DROP TABLE IF EXISTS `video_danmaku`;
+CREATE TABLE `video_danmaku` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '弹幕ID',
+    `video_id` BIGINT NOT NULL COMMENT '视频ID',
+    `user_id` BIGINT NOT NULL COMMENT '发送用户ID',
+    `content` VARCHAR(200) NOT NULL COMMENT '弹幕内容',
+    `time_position` DECIMAL(8,3) NOT NULL COMMENT '弹幕出现时间位置(秒)',
+    `color` VARCHAR(20) DEFAULT '#FFFFFF' COMMENT '弹幕颜色',
+    `font_size` INT NOT NULL DEFAULT 16 COMMENT '字号',
+    `mode` TINYINT NOT NULL DEFAULT 1 COMMENT '弹幕模式: 1-滚动, 2-顶部固定, 3-底部固定',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_video_id` (`video_id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_video_time` (`video_id`, `time_position`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='弹幕记录表';
+
+
+-- ============================================================================
+-- [模块三] 编程练习模块 (6张表)
+-- 表清单: practice_question, test_case, practice_record, practice_draft,
+--          scratch_project, question_recommend
+-- ============================================================================
+
+-- ----------------------------
+-- 14. practice_question 练习题目表
+-- ----------------------------
+DROP TABLE IF EXISTS `practice_question`;
+CREATE TABLE `practice_question` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '题目ID',
+    `title` VARCHAR(200) NOT NULL COMMENT '题目标题',
+    `description` TEXT NOT NULL COMMENT '题目描述',
+    `language` VARCHAR(20) NOT NULL COMMENT '编程语言: SCRATCH_JR, SCRATCH3, PYTHON, CPP, GOC',
+    `difficulty` TINYINT NOT NULL DEFAULT 1 COMMENT '难度等级: 1-入门, 2-基础, 3-进阶, 4-高级',
+    `time_limit` INT NOT NULL DEFAULT 1000 COMMENT '时间限制(毫秒)',
+    `memory_limit` INT NOT NULL DEFAULT 256 COMMENT '内存限制(MB)',
+    `template_code` TEXT DEFAULT NULL COMMENT '模板代码',
+    `tags` VARCHAR(500) DEFAULT NULL COMMENT '标签(逗号分隔)',
+    `submit_count` INT NOT NULL DEFAULT 0 COMMENT '提交次数',
+    `accept_count` INT NOT NULL DEFAULT 0 COMMENT '通过次数',
+    `accept_rate` DECIMAL(5,2) NOT NULL DEFAULT 0.00 COMMENT '通过率(%)',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-禁用, 1-启用',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_language` (`language`),
+    KEY `idx_difficulty` (`difficulty`),
+    KEY `idx_status` (`status`),
+    KEY `idx_language_difficulty` (`language`, `difficulty`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='练习题目表';
+
+-- ----------------------------
+-- 15. test_case 测试用例表
+-- ----------------------------
+DROP TABLE IF EXISTS `test_case`;
+CREATE TABLE `test_case` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '测试用例ID',
+    `question_id` BIGINT NOT NULL COMMENT '题目ID',
+    `input_data` TEXT NOT NULL COMMENT '输入数据',
+    `expected_output` TEXT NOT NULL COMMENT '期望输出',
+    `is_sample` TINYINT NOT NULL DEFAULT 0 COMMENT '是否样例: 0-否, 1-是',
+    `score` DECIMAL(5,2) NOT NULL DEFAULT 0.00 COMMENT '分值',
+    `sort_order` INT NOT NULL DEFAULT 0 COMMENT '排序号',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_question_id` (`question_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='测试用例表';
+
+-- ----------------------------
+-- 16. practice_record 提交记录表
+-- ----------------------------
+DROP TABLE IF EXISTS `practice_record`;
+CREATE TABLE `practice_record` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '提交记录ID',
+    `question_id` BIGINT NOT NULL COMMENT '题目ID',
+    `user_id` BIGINT NOT NULL COMMENT '提交用户ID',
+    `code` TEXT DEFAULT NULL COMMENT '提交代码',
+    `scratch_json` MEDIUMTEXT DEFAULT NULL COMMENT 'Scratch项目JSON',
+    `language` VARCHAR(20) NOT NULL COMMENT '编程语言',
+    `judge_status` VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT '判题状态: PENDING-等待, JUDGING-判题中, AC-通过, WA-答案错误, TLE-超时, MLE-超内存, CE-编译错误, RE-运行错误',
+    `score` DECIMAL(5,2) NOT NULL DEFAULT 0.00 COMMENT '得分',
+    `time_cost` INT NOT NULL DEFAULT 0 COMMENT '耗时(毫秒)',
+    `memory_cost` INT NOT NULL DEFAULT 0 COMMENT '内存消耗(KB)',
+    `error_message` TEXT DEFAULT NULL COMMENT '错误信息',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_question_id` (`question_id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_judge_status` (`judge_status`),
+    KEY `idx_user_question` (`user_id`, `question_id`),
+    KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='练习提交记录表';
+
+-- ----------------------------
+-- 17. practice_draft 草稿表
+-- ----------------------------
+DROP TABLE IF EXISTS `practice_draft`;
+CREATE TABLE `practice_draft` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '草稿ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `question_id` BIGINT NOT NULL COMMENT '题目ID',
+    `code` TEXT DEFAULT NULL COMMENT '代码草稿',
+    `scratch_json` MEDIUMTEXT DEFAULT NULL COMMENT 'Scratch项目草稿JSON',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_question` (`user_id`, `question_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='练习草稿表';
+
+-- ----------------------------
+-- 18. scratch_project Scratch作品表
+-- ----------------------------
+DROP TABLE IF EXISTS `scratch_project`;
+CREATE TABLE `scratch_project` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '作品ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `title` VARCHAR(200) NOT NULL COMMENT '作品标题',
+    `description` TEXT DEFAULT NULL COMMENT '作品描述',
+    `project_json` MEDIUMTEXT NOT NULL COMMENT 'Scratch项目JSON数据',
+    `thumbnail` VARCHAR(500) DEFAULT NULL COMMENT '缩略图URL',
+    `is_public` TINYINT NOT NULL DEFAULT 0 COMMENT '是否公开: 0-私有, 1-公开',
+    `view_count` INT NOT NULL DEFAULT 0 COMMENT '浏览次数',
+    `like_count` INT NOT NULL DEFAULT 0 COMMENT '点赞次数',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_is_public` (`is_public`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Scratch作品表';
+
+-- ----------------------------
+-- 19. question_recommend 题目推荐记录表
+-- ----------------------------
+DROP TABLE IF EXISTS `question_recommend`;
+CREATE TABLE `question_recommend` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '推荐ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `question_id` BIGINT NOT NULL COMMENT '题目ID',
+    `recommend_reason` VARCHAR(200) DEFAULT NULL COMMENT '推荐理由',
+    `score` DECIMAL(5,2) NOT NULL DEFAULT 0.00 COMMENT '推荐分数',
+    `is_clicked` TINYINT NOT NULL DEFAULT 0 COMMENT '是否点击: 0-否, 1-是',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_question_id` (`question_id`),
+    KEY `idx_user_score` (`user_id`, `score`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='题目推荐记录表';
+
+
+-- ============================================================================
+-- [模块四] 在线考试模块 (7张表)
+-- 表清单: exam_info, exam_paper, exam_paper_question, exam_record,
+--          exam_answer, exam_violation_log, exam_snapshot
+-- ============================================================================
+
+-- ----------------------------
+-- 20. exam_info 考试表
+-- ----------------------------
+DROP TABLE IF EXISTS `exam_info`;
+CREATE TABLE `exam_info` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '考试ID',
+    `title` VARCHAR(200) NOT NULL COMMENT '考试标题',
+    `description` TEXT DEFAULT NULL COMMENT '考试描述',
+    `exam_type` TINYINT NOT NULL DEFAULT 1 COMMENT '考试类型: 1-随堂测验, 2-单元测试, 3-期中考试, 4-期末考试',
+    `language` VARCHAR(20) NOT NULL COMMENT '编程语言',
+    `course_id` BIGINT DEFAULT NULL COMMENT '关联课程ID',
+    `teacher_id` BIGINT NOT NULL COMMENT '出题教师ID',
+    `start_time` DATETIME NOT NULL COMMENT '考试开始时间',
+    `end_time` DATETIME NOT NULL COMMENT '考试结束时间',
+    `duration` INT NOT NULL COMMENT '考试时长(分钟)',
+    `total_score` DECIMAL(6,2) NOT NULL DEFAULT 100.00 COMMENT '总分',
+    `pass_score` DECIMAL(6,2) NOT NULL DEFAULT 60.00 COMMENT '及格分',
+    `max_participants` INT NOT NULL DEFAULT 1000 COMMENT '最大参与人数',
+    `current_participants` INT NOT NULL DEFAULT 0 COMMENT '当前参与人数',
+    `anti_cheat_level` TINYINT NOT NULL DEFAULT 1 COMMENT '防作弊等级: 0-关闭, 1-基础, 2-严格, 3-极严',
+    `max_tab_switch` INT NOT NULL DEFAULT 3 COMMENT '最大切屏次数',
+    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '状态: 0-草稿, 1-已发布, 2-进行中, 3-已结束',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_course_id` (`course_id`),
+    KEY `idx_teacher_id` (`teacher_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_start_time` (`start_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='考试表';
+
+-- ----------------------------
+-- 21. exam_paper 试卷表
+-- ----------------------------
+DROP TABLE IF EXISTS `exam_paper`;
+CREATE TABLE `exam_paper` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '试卷ID',
+    `exam_id` BIGINT NOT NULL COMMENT '考试ID',
+    `paper_name` VARCHAR(200) NOT NULL COMMENT '试卷名称',
+    `is_random` TINYINT NOT NULL DEFAULT 0 COMMENT '是否随机出题: 0-固定, 1-随机',
+    `random_seed` INT DEFAULT NULL COMMENT '随机种子',
+    `total_score` DECIMAL(6,2) NOT NULL DEFAULT 100.00 COMMENT '总分',
+    `question_count` INT NOT NULL DEFAULT 0 COMMENT '题目数量',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_exam_id` (`exam_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='试卷表';
+
+-- ----------------------------
+-- 22. exam_paper_question 试卷题目关联表
+-- ----------------------------
+DROP TABLE IF EXISTS `exam_paper_question`;
+CREATE TABLE `exam_paper_question` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '关联ID',
+    `paper_id` BIGINT NOT NULL COMMENT '试卷ID',
+    `question_id` BIGINT NOT NULL COMMENT '题目ID',
+    `question_type` VARCHAR(20) NOT NULL COMMENT '题型: CHOICE-选择题, FILL-填空题, CODE-编程题, JUDGE-判断题, SCRATCH-Scratch题',
+    `score` DECIMAL(5,2) NOT NULL COMMENT '分值',
+    `sort_order` INT NOT NULL DEFAULT 0 COMMENT '排序号',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_paper_id` (`paper_id`),
+    KEY `idx_question_id` (`question_id`),
+    KEY `idx_paper_sort` (`paper_id`, `sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='试卷题目关联表';
+
+-- ----------------------------
+-- 23. exam_record 考试记录表(高频表)
+-- ----------------------------
+DROP TABLE IF EXISTS `exam_record`;
+CREATE TABLE `exam_record` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '考试记录ID',
+    `exam_id` BIGINT NOT NULL COMMENT '考试ID',
+    `paper_id` BIGINT NOT NULL COMMENT '试卷ID',
+    `user_id` BIGINT NOT NULL COMMENT '考生ID',
+    `score` DECIMAL(6,2) NOT NULL DEFAULT 0.00 COMMENT '得分',
+    `status` VARCHAR(20) NOT NULL DEFAULT 'NOT_STARTED' COMMENT '状态: NOT_STARTED-未开始, IN_PROGRESS-进行中, SUBMITTED-已提交, GRADING-阅卷中, GRADED-已阅卷, ABNORMAL-异常',
+    `start_time` DATETIME DEFAULT NULL COMMENT '开始答题时间',
+    `submit_time` DATETIME DEFAULT NULL COMMENT '提交时间',
+    `tab_switch_count` INT NOT NULL DEFAULT 0 COMMENT '切屏次数',
+    `violation_count` INT NOT NULL DEFAULT 0 COMMENT '违规次数',
+    `snapshot_version` INT NOT NULL DEFAULT 0 COMMENT '快照版本号',
+    `client_info` VARCHAR(500) DEFAULT NULL COMMENT '客户端信息',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_exam_user` (`exam_id`, `user_id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_paper_id` (`paper_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='考试记录表';
+
+-- ----------------------------
+-- 24. exam_answer 考试作答表
+-- ----------------------------
+DROP TABLE IF EXISTS `exam_answer`;
+CREATE TABLE `exam_answer` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '作答ID',
+    `record_id` BIGINT NOT NULL COMMENT '考试记录ID',
+    `question_id` BIGINT NOT NULL COMMENT '题目ID',
+    `user_id` BIGINT NOT NULL COMMENT '考生ID',
+    `answer_content` TEXT DEFAULT NULL COMMENT '答案内容(选择/填空/判断)',
+    `code` TEXT DEFAULT NULL COMMENT '编程代码',
+    `scratch_json` MEDIUMTEXT DEFAULT NULL COMMENT 'Scratch项目JSON',
+    `score` DECIMAL(5,2) NOT NULL DEFAULT 0.00 COMMENT '得分',
+    `judge_status` VARCHAR(20) DEFAULT NULL COMMENT '判题状态: PENDING, JUDGING, AC, WA, TLE, MLE, CE, RE',
+    `time_cost` INT NOT NULL DEFAULT 0 COMMENT '答题耗时(秒)',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_record_question` (`record_id`, `question_id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_question_id` (`question_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='考试作答表';
+
+-- ----------------------------
+-- 25. exam_violation_log 违规日志表
+-- ----------------------------
+DROP TABLE IF EXISTS `exam_violation_log`;
+CREATE TABLE `exam_violation_log` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '违规日志ID',
+    `record_id` BIGINT NOT NULL COMMENT '考试记录ID',
+    `exam_id` BIGINT NOT NULL COMMENT '考试ID',
+    `user_id` BIGINT NOT NULL COMMENT '考生ID',
+    `violation_type` VARCHAR(30) NOT NULL COMMENT '违规类型: TAB_SWITCH-切屏, FULLSCREEN_EXIT-退出全屏, COPY_PASTE-复制粘贴, SUSPICIOUS_BEHAVIOR-可疑行为',
+    `description` VARCHAR(500) DEFAULT NULL COMMENT '违规描述',
+    `violation_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '违规时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_record_id` (`record_id`),
+    KEY `idx_exam_id` (`exam_id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_violation_time` (`violation_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='考试违规日志表';
+
+-- ----------------------------
+-- 26. exam_snapshot 考试快照表
+-- ----------------------------
+DROP TABLE IF EXISTS `exam_snapshot`;
+CREATE TABLE `exam_snapshot` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '快照ID',
+    `record_id` BIGINT NOT NULL COMMENT '考试记录ID',
+    `exam_id` BIGINT NOT NULL COMMENT '考试ID',
+    `user_id` BIGINT NOT NULL COMMENT '考生ID',
+    `snapshot_data` JSON DEFAULT NULL COMMENT '快照JSON数据',
+    `version` INT NOT NULL DEFAULT 1 COMMENT '版本号',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_record_id` (`record_id`),
+    KEY `idx_exam_id` (`exam_id`),
+    KEY `idx_record_version` (`record_id`, `version`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='考试快照表';
+
+
+-- ============================================================================
+-- [模块五] 阅卷模块 (3张表)
+-- 表清单: exam_grading_task, exam_grading_detail, exam_grading_review
+-- ============================================================================
+
+-- ----------------------------
+-- 27. exam_grading_task 阅卷任务表
+-- ----------------------------
+DROP TABLE IF EXISTS `exam_grading_task`;
+CREATE TABLE `exam_grading_task` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '阅卷任务ID',
+    `exam_id` BIGINT NOT NULL COMMENT '考试ID',
+    `record_id` BIGINT NOT NULL COMMENT '考试记录ID',
+    `user_id` BIGINT NOT NULL COMMENT '考生ID',
+    `auto_score` DECIMAL(6,2) NOT NULL DEFAULT 0.00 COMMENT '自动评分',
+    `teacher_id` BIGINT DEFAULT NULL COMMENT '阅卷教师ID',
+    `teacher_score` DECIMAL(6,2) DEFAULT NULL COMMENT '教师评分',
+    `review_teacher_id` BIGINT DEFAULT NULL COMMENT '审核教师ID',
+    `review_status` VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT '审核状态: PENDING-待审核, AUTO_GRADED-已自动评分, REVIEWING-审核中, REVIEWED-已审核, CONFIRMED-已确认',
+    `review_score` DECIMAL(6,2) DEFAULT NULL COMMENT '审核评分',
+    `leader_id` BIGINT DEFAULT NULL COMMENT '组长ID',
+    `leader_status` VARCHAR(20) DEFAULT NULL COMMENT '组长审核状态',
+    `admin_confirm` TINYINT NOT NULL DEFAULT 0 COMMENT '管理员确认: 0-未确认, 1-已确认',
+    `final_score` DECIMAL(6,2) DEFAULT NULL COMMENT '最终得分',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_exam_record` (`exam_id`, `record_id`),
+    KEY `idx_teacher_id` (`teacher_id`),
+    KEY `idx_review_teacher_id` (`review_teacher_id`),
+    KEY `idx_review_status` (`review_status`),
+    KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='阅卷任务表';
+
+-- ----------------------------
+-- 28. exam_grading_detail 阅卷明细表
+-- ----------------------------
+DROP TABLE IF EXISTS `exam_grading_detail`;
+CREATE TABLE `exam_grading_detail` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '阅卷明细ID',
+    `task_id` BIGINT NOT NULL COMMENT '阅卷任务ID',
+    `record_id` BIGINT NOT NULL COMMENT '考试记录ID',
+    `question_id` BIGINT NOT NULL COMMENT '题目ID',
+    `auto_score` DECIMAL(5,2) NOT NULL DEFAULT 0.00 COMMENT '自动评分',
+    `teacher_score` DECIMAL(5,2) DEFAULT NULL COMMENT '教师评分',
+    `annotation` VARCHAR(500) DEFAULT NULL COMMENT '批注',
+    `is_disputed` TINYINT NOT NULL DEFAULT 0 COMMENT '是否争议: 0-否, 1-是',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_task_id` (`task_id`),
+    KEY `idx_record_id` (`record_id`),
+    KEY `idx_question_id` (`question_id`),
+    UNIQUE KEY `uk_task_question` (`task_id`, `question_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='阅卷明细表';
+
+-- ----------------------------
+-- 29. exam_grading_review 审核记录表
+-- ----------------------------
+DROP TABLE IF EXISTS `exam_grading_review`;
+CREATE TABLE `exam_grading_review` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '审核记录ID',
+    `task_id` BIGINT NOT NULL COMMENT '阅卷任务ID',
+    `reviewer_id` BIGINT NOT NULL COMMENT '审核人ID',
+    `review_type` VARCHAR(20) NOT NULL COMMENT '审核类型: TEACHER_REVIEW-教师审核, HEAD_REVIEW-组长审核, ADMIN_CONFIRM-管理员确认',
+    `operation` VARCHAR(20) NOT NULL COMMENT '操作: APPROVE-通过, REJECT-驳回, ESCALATE-升级',
+    `comment` VARCHAR(500) DEFAULT NULL COMMENT '审核意见',
+    `score_after_review` DECIMAL(6,2) DEFAULT NULL COMMENT '审核后分数',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_task_id` (`task_id`),
+    KEY `idx_reviewer_id` (`reviewer_id`),
+    KEY `idx_review_type` (`review_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='阅卷审核记录表';
+
+
+-- ============================================================================
+-- [模块六] 支付模块 (3张表)
+-- 表清单: pay_order, pay_refund, pay_callback_log
+-- ============================================================================
+
+-- ----------------------------
+-- 30. pay_order 支付订单表
+-- ----------------------------
+DROP TABLE IF EXISTS `pay_order`;
+CREATE TABLE `pay_order` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '订单ID',
+    `order_no` VARCHAR(64) NOT NULL COMMENT '订单号',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `business_type` VARCHAR(20) NOT NULL COMMENT '业务类型: COURSE-课程, MEMBERSHIP-会员, GROUP_BUY-团购, POINT_GOODS-积分商品',
+    `business_id` BIGINT NOT NULL COMMENT '业务ID',
+    `pay_channel` VARCHAR(20) DEFAULT NULL COMMENT '支付渠道: ALIPAY-支付宝, WECHAT-微信, BALANCE-余额',
+    `total_amount` DECIMAL(10,2) NOT NULL COMMENT '订单金额',
+    `discount_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '优惠金额',
+    `pay_amount` DECIMAL(10,2) NOT NULL COMMENT '实付金额',
+    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '状态: 0-待支付, 1-已支付, 2-已取消, 3-已过期, 4-已退款',
+    `trade_no` VARCHAR(128) DEFAULT NULL COMMENT '第三方交易号',
+    `pay_time` DATETIME DEFAULT NULL COMMENT '支付时间',
+    `expire_time` DATETIME NOT NULL COMMENT '过期时间',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_order_no` (`order_no`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_business` (`business_type`, `business_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_pay_time` (`pay_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='支付订单表';
+
+-- ----------------------------
+-- 31. pay_refund 退款记录表
+-- ----------------------------
+DROP TABLE IF EXISTS `pay_refund`;
+CREATE TABLE `pay_refund` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '退款ID',
+    `refund_no` VARCHAR(64) NOT NULL COMMENT '退款单号',
+    `order_id` BIGINT NOT NULL COMMENT '关联订单ID',
+    `order_no` VARCHAR(64) NOT NULL COMMENT '关联订单号',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `refund_amount` DECIMAL(10,2) NOT NULL COMMENT '退款金额',
+    `reason` VARCHAR(500) DEFAULT NULL COMMENT '退款原因',
+    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '状态: 0-申请中, 1-已退款, 2-已拒绝',
+    `trade_no` VARCHAR(128) DEFAULT NULL COMMENT '第三方退款交易号',
+    `refund_time` DATETIME DEFAULT NULL COMMENT '退款时间',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_refund_no` (`refund_no`),
+    KEY `idx_order_id` (`order_id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='退款记录表';
+
+-- ----------------------------
+-- 32. pay_callback_log 支付回调日志表
+-- ----------------------------
+DROP TABLE IF EXISTS `pay_callback_log`;
+CREATE TABLE `pay_callback_log` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '日志ID',
+    `order_no` VARCHAR(64) NOT NULL COMMENT '关联订单号',
+    `pay_channel` VARCHAR(20) NOT NULL COMMENT '支付渠道',
+    `callback_type` VARCHAR(20) NOT NULL COMMENT '回调类型: PAY-支付, REFUND-退款',
+    `request_body` TEXT DEFAULT NULL COMMENT '请求体',
+    `response_body` TEXT DEFAULT NULL COMMENT '响应体',
+    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '处理状态: 0-失败, 1-成功',
+    `error_message` VARCHAR(500) DEFAULT NULL COMMENT '错误信息',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_order_no` (`order_no`),
+    KEY `idx_pay_channel` (`pay_channel`),
+    KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='支付回调日志表';
+
+
+-- ============================================================================
+-- [模块七] 成长体系 (7张表)
+-- 表清单: user_point, point_log, medal, user_medal, user_level,
+--          point_goods, point_exchange
+-- ============================================================================
+
+-- ----------------------------
+-- 33. user_point 用户积分表
+-- ----------------------------
+DROP TABLE IF EXISTS `user_point`;
+CREATE TABLE `user_point` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '积分ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `total_point` INT NOT NULL DEFAULT 0 COMMENT '总积分',
+    `available_point` INT NOT NULL DEFAULT 0 COMMENT '可用积分',
+    `frozen_point` INT NOT NULL DEFAULT 0 COMMENT '冻结积分',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户积分表';
+
+-- ----------------------------
+-- 34. point_log 积分日志表
+-- ----------------------------
+DROP TABLE IF EXISTS `point_log`;
+CREATE TABLE `point_log` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '日志ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `change_type` VARCHAR(30) NOT NULL COMMENT '变动类型: SIGN_IN-签到, COURSE_COMPLETE-完成课程, PRACTICE_AC-练习通过, EXAM_PASS-考试通过, EXCHANGE-兑换, REFUND-退还, ADMIN_ADJUST-管理员调整',
+    `change_value` INT NOT NULL COMMENT '变动值(正为增加,负为减少)',
+    `balance_after` INT NOT NULL COMMENT '变动后余额',
+    `description` VARCHAR(200) DEFAULT NULL COMMENT '变动描述',
+    `related_id` BIGINT DEFAULT NULL COMMENT '关联业务ID',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_change_type` (`change_type`),
+    KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='积分变动日志表';
+
+-- ----------------------------
+-- 35. medal 勋章表
+-- ----------------------------
+DROP TABLE IF EXISTS `medal`;
+CREATE TABLE `medal` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '勋章ID',
+    `medal_name` VARCHAR(50) NOT NULL COMMENT '勋章名称',
+    `medal_icon` VARCHAR(500) NOT NULL COMMENT '勋章图标URL',
+    `description` VARCHAR(200) DEFAULT NULL COMMENT '勋章描述',
+    `condition_type` VARCHAR(30) NOT NULL COMMENT '获取条件类型: COURSE_COUNT-课程数, PRACTICE_COUNT-练习数, EXAM_PASS-考试通过, SIGN_IN_DAYS-签到天数, POINT_TOTAL-总积分',
+    `condition_value` INT NOT NULL COMMENT '获取条件值',
+    `sort_order` INT NOT NULL DEFAULT 0 COMMENT '排序号',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-禁用, 1-启用',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_condition_type` (`condition_type`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='勋章表';
+
+-- ----------------------------
+-- 36. user_medal 用户勋章表
+-- ----------------------------
+DROP TABLE IF EXISTS `user_medal`;
+CREATE TABLE `user_medal` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `medal_id` BIGINT NOT NULL COMMENT '勋章ID',
+    `obtain_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '获得时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_medal` (`user_id`, `medal_id`),
+    KEY `idx_medal_id` (`medal_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户勋章表';
+
+-- ----------------------------
+-- 37. user_level 用户等级表
+-- ----------------------------
+DROP TABLE IF EXISTS `user_level`;
+CREATE TABLE `user_level` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '等级ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `level_name` VARCHAR(20) NOT NULL COMMENT '等级名称: BRONZE-青铜, SILVER-白银, GOLD-黄金, PLATINUM-铂金, DIAMOND-钻石',
+    `level` INT NOT NULL DEFAULT 1 COMMENT '等级数值',
+    `experience` INT NOT NULL DEFAULT 0 COMMENT '当前经验值',
+    `next_level_experience` INT NOT NULL DEFAULT 100 COMMENT '下一级所需经验值',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_id` (`user_id`),
+    KEY `idx_level` (`level`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户等级表';
+
+-- ----------------------------
+-- 38. point_goods 积分商品表
+-- ----------------------------
+DROP TABLE IF EXISTS `point_goods`;
+CREATE TABLE `point_goods` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '商品ID',
+    `goods_name` VARCHAR(100) NOT NULL COMMENT '商品名称',
+    `goods_image` VARCHAR(500) DEFAULT NULL COMMENT '商品图片URL',
+    `description` VARCHAR(500) DEFAULT NULL COMMENT '商品描述',
+    `point_price` INT NOT NULL COMMENT '所需积分',
+    `stock` INT NOT NULL DEFAULT 0 COMMENT '库存数量',
+    `exchanged_count` INT NOT NULL DEFAULT 0 COMMENT '已兑换数量',
+    `sort_order` INT NOT NULL DEFAULT 0 COMMENT '排序号',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-下架, 1-上架',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='积分商品表';
+
+-- ----------------------------
+-- 39. point_exchange 兑换记录表
+-- ----------------------------
+DROP TABLE IF EXISTS `point_exchange`;
+CREATE TABLE `point_exchange` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '兑换记录ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `goods_id` BIGINT NOT NULL COMMENT '商品ID',
+    `point_cost` INT NOT NULL COMMENT '消耗积分',
+    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '状态: 0-待发货, 1-已发货, 2-已完成, 3-已取消',
+    `shipping_info` VARCHAR(500) DEFAULT NULL COMMENT '发货信息',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_goods_id` (`goods_id`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='积分兑换记录表';
+
+
+-- ============================================================================
+-- [模块八] 营销活动 (5张表)
+-- 表清单: membership, group_buy_activity, group_buy_record, coupon, user_coupon
+-- ============================================================================
+
+-- ----------------------------
+-- 40. membership 会员套餐表
+-- ----------------------------
+DROP TABLE IF EXISTS `membership`;
+CREATE TABLE `membership` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '套餐ID',
+    `membership_name` VARCHAR(100) NOT NULL COMMENT '套餐名称',
+    `days` INT NOT NULL COMMENT '有效天数',
+    `price` DECIMAL(10,2) NOT NULL COMMENT '价格(元)',
+    `original_price` DECIMAL(10,2) DEFAULT NULL COMMENT '原价(元)',
+    `discount_rate` DECIMAL(3,2) NOT NULL DEFAULT 1.00 COMMENT '折扣率(如0.8表示八折)',
+    `benefits_json` JSON DEFAULT NULL COMMENT '权益JSON(课程折扣/专属内容等)',
+    `sort_order` INT NOT NULL DEFAULT 0 COMMENT '排序号',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-下架, 1-上架',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会员套餐表';
+
+-- ----------------------------
+-- 41. group_buy_activity 团购活动表
+-- ----------------------------
+DROP TABLE IF EXISTS `group_buy_activity`;
+CREATE TABLE `group_buy_activity` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '团购活动ID',
+    `course_id` BIGINT NOT NULL COMMENT '关联课程ID',
+    `group_price` DECIMAL(10,2) NOT NULL COMMENT '团购价格',
+    `group_size` INT NOT NULL COMMENT '成团人数',
+    `max_groups` INT NOT NULL DEFAULT 0 COMMENT '最大团数(0不限)',
+    `current_groups` INT NOT NULL DEFAULT 0 COMMENT '当前成团数',
+    `start_time` DATETIME NOT NULL COMMENT '活动开始时间',
+    `end_time` DATETIME NOT NULL COMMENT '活动结束时间',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-禁用, 1-启用',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_course_id` (`course_id`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='团购活动表';
+
+-- ----------------------------
+-- 42. group_buy_record 团购记录表
+-- ----------------------------
+DROP TABLE IF EXISTS `group_buy_record`;
+CREATE TABLE `group_buy_record` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '团购记录ID',
+    `activity_id` BIGINT NOT NULL COMMENT '团购活动ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `leader_id` BIGINT NOT NULL COMMENT '团长ID',
+    `group_no` VARCHAR(32) NOT NULL COMMENT '团号',
+    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '状态: 0-拼团中, 1-已成团, 2-已失败, 3-已退款',
+    `join_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '参团时间',
+    `success_time` DATETIME DEFAULT NULL COMMENT '成团时间',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_activity_id` (`activity_id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_leader_id` (`leader_id`),
+    KEY `idx_group_no` (`group_no`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='团购记录表';
+
+-- ----------------------------
+-- 43. coupon 优惠券表
+-- ----------------------------
+DROP TABLE IF EXISTS `coupon`;
+CREATE TABLE `coupon` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '优惠券ID',
+    `coupon_name` VARCHAR(100) NOT NULL COMMENT '优惠券名称',
+    `coupon_type` TINYINT NOT NULL COMMENT '类型: 1-满减, 2-折扣, 3-兑换',
+    `face_value` DECIMAL(10,2) NOT NULL COMMENT '面值(满减为金额,折扣为折扣率如0.8)',
+    `min_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '最低消费金额',
+    `total_count` INT NOT NULL DEFAULT 0 COMMENT '发放总量(0不限)',
+    `used_count` INT NOT NULL DEFAULT 0 COMMENT '已使用数量',
+    `start_time` DATETIME NOT NULL COMMENT '生效时间',
+    `end_time` DATETIME NOT NULL COMMENT '过期时间',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-禁用, 1-启用',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_coupon_type` (`coupon_type`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='优惠券表';
+
+-- ----------------------------
+-- 44. user_coupon 用户优惠券表
+-- ----------------------------
+DROP TABLE IF EXISTS `user_coupon`;
+CREATE TABLE `user_coupon` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `user_id` BIGINT NOT NULL COMMENT '用户ID',
+    `coupon_id` BIGINT NOT NULL COMMENT '优惠券ID',
+    `status` TINYINT NOT NULL DEFAULT 0 COMMENT '状态: 0-未使用, 1-已使用, 2-已过期',
+    `use_time` DATETIME DEFAULT NULL COMMENT '使用时间',
+    `order_id` BIGINT DEFAULT NULL COMMENT '关联订单ID',
+    `expire_time` DATETIME NOT NULL COMMENT '过期时间',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_coupon_id` (`coupon_id`),
+    KEY `idx_status` (`status`),
+    KEY `idx_user_status` (`user_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户优惠券表';
+
+
+-- ============================================================================
+-- [模块九] 班级管理 (4张表)
+-- 表清单: teach_class, class_student, class_schedule, file_record
+-- ============================================================================
+
+-- ----------------------------
+-- 45. teach_class 教学班级表
+-- ----------------------------
+DROP TABLE IF EXISTS `teach_class`;
+CREATE TABLE `teach_class` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '班级ID',
+    `class_name` VARCHAR(100) NOT NULL COMMENT '班级名称',
+    `teacher_id` BIGINT NOT NULL COMMENT '教师ID',
+    `course_id` BIGINT NOT NULL COMMENT '课程ID',
+    `description` VARCHAR(500) DEFAULT NULL COMMENT '班级描述',
+    `max_students` INT NOT NULL DEFAULT 50 COMMENT '最大人数',
+    `current_students` INT NOT NULL DEFAULT 0 COMMENT '当前人数',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-禁用, 1-启用',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_teacher_id` (`teacher_id`),
+    KEY `idx_course_id` (`course_id`),
+    KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='教学班级表';
+
+-- ----------------------------
+-- 46. class_student 班级学员表
+-- ----------------------------
+DROP TABLE IF EXISTS `class_student`;
+CREATE TABLE `class_student` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `class_id` BIGINT NOT NULL COMMENT '班级ID',
+    `user_id` BIGINT NOT NULL COMMENT '学员ID',
+    `join_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '加入时间',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-已退出, 1-在读',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_class_user` (`class_id`, `user_id`),
+    KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='班级学员关联表';
+
+-- ----------------------------
+-- 47. class_schedule 排课表
+-- ----------------------------
+DROP TABLE IF EXISTS `class_schedule`;
+CREATE TABLE `class_schedule` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '排课ID',
+    `class_id` BIGINT NOT NULL COMMENT '班级ID',
+    `teacher_id` BIGINT NOT NULL COMMENT '教师ID',
+    `course_id` BIGINT NOT NULL COMMENT '课程ID',
+    `schedule_date` DATE NOT NULL COMMENT '排课日期',
+    `start_time` TIME NOT NULL COMMENT '开始时间',
+    `end_time` TIME NOT NULL COMMENT '结束时间',
+    `classroom` VARCHAR(100) DEFAULT NULL COMMENT '教室/会议室',
+    `topic` VARCHAR(200) DEFAULT NULL COMMENT '课程主题',
+    `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0-取消, 1-正常',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_class_id` (`class_id`),
+    KEY `idx_teacher_id` (`teacher_id`),
+    KEY `idx_schedule_date` (`schedule_date`),
+    KEY `idx_class_date` (`class_id`, `schedule_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='排课表';
+
+-- ----------------------------
+-- 48. file_record 文件记录表
+-- ----------------------------
+DROP TABLE IF EXISTS `file_record`;
+CREATE TABLE `file_record` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '文件ID',
+    `file_name` VARCHAR(255) NOT NULL COMMENT '文件名',
+    `file_path` VARCHAR(500) NOT NULL COMMENT 'MinIO存储路径',
+    `file_size` BIGINT NOT NULL DEFAULT 0 COMMENT '文件大小(字节)',
+    `file_type` VARCHAR(50) DEFAULT NULL COMMENT '文件MIME类型',
+    `business_type` VARCHAR(30) DEFAULT NULL COMMENT '业务类型: COURSE_COVER-课程封面, VIDEO-视频, AVATAR-头像, ATTACHMENT-附件',
+    `business_id` BIGINT DEFAULT NULL COMMENT '关联业务ID',
+    `uploader_id` BIGINT NOT NULL COMMENT '上传者ID',
+    `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除: 0-未删除, 1-已删除',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_business` (`business_type`, `business_id`),
+    KEY `idx_uploader_id` (`uploader_id`),
+    KEY `idx_file_type` (`file_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文件记录表';
+
+
+-- ============================================================================
+-- [初始化数据]
+-- 包含: 超级管理员、教师账号、默认角色、权限菜单、示例课程、示例练习题
+-- ============================================================================
+
+-- ============================================================================
+-- 初始化用户数据
+-- 密码使用BCrypt加密: admin123 -> f8f1a873a8be12ed67a20765f55dc705
+-- 注意: 以下BCrypt哈希为示例值, 实际部署时请使用真实BCrypt哈希
+-- ============================================================================
+
+-- 超级管理员 admin / admin123
+INSERT INTO `sys_user` (`id`, `username`, `password`, `nickname`, `avatar`, `email`, `phone`, `real_name`, `role_type`, `status`, `last_login_ip`, `last_login_time`) VALUES
+(1, 'admin', 'f8f1a873a8be12ed67a20765f55dc705', '超级管理员', NULL, 'admin@magao.com', '13800000001', '系统管理员', 'ADMIN', 1, '127.0.0.1', NOW());
+
+-- 示例教师 teacher1 / teacher123
+INSERT INTO `sys_user` (`id`, `username`, `password`, `nickname`, `avatar`, `email`, `phone`, `real_name`, `role_type`, `status`, `last_login_ip`, `last_login_time`) VALUES
+(2, 'teacher1', 'f8f1a873a8be12ed67a20765f55dc705', '王老师', NULL, 'teacher1@magao.com', '13800000002', '王明辉', 'TEACHER', 1, '192.168.1.100', NOW());
+
+-- 示例学生
+INSERT INTO `sys_user` (`id`, `username`, `password`, `nickname`, `avatar`, `email`, `phone`, `real_name`, `role_type`, `status`) VALUES
+(3, 'student1', 'f8f1a873a8be12ed67a20765f55dc705', '小明同学', NULL, 'student1@magao.com', '13900000001', '李明', 'STUDENT', 1),
+(4, 'student2', 'f8f1a873a8be12ed67a20765f55dc705', '小红同学', NULL, 'student2@magao.com', '13900000002', '张红', 'STUDENT', 1);
+
+-- ============================================================================
+-- 初始化角色数据 (4个默认角色)
+-- ============================================================================
+INSERT INTO `sys_role` (`id`, `role_name`, `role_code`, `description`, `sort_order`, `status`) VALUES
+(1, '超级管理员', 'SUPER_ADMIN', '拥有系统全部权限', 1, 1),
+(2, '教师', 'TEACHER', '课程管理和教学相关权限', 2, 1),
+(3, '运营', 'OPERATOR', '运营管理和数据统计权限', 3, 1),
+(4, '学生', 'STUDENT', '学习和练习相关权限', 4, 1);
+
+-- ============================================================================
+-- 初始化用户角色关联
+-- ============================================================================
+INSERT INTO `sys_user_role` (`user_id`, `role_id`) VALUES
+(1, 1),  -- admin -> 超级管理员
+(2, 2),  -- teacher1 -> 教师
+(3, 4),  -- student1 -> 学生
+(4, 4);  -- student2 -> 学生
+
+-- ============================================================================
+-- 初始化权限菜单数据 (基础菜单结构)
+-- ============================================================================
+-- 一级菜单
+INSERT INTO `sys_permission` (`id`, `parent_id`, `permission_name`, `permission_type`, `permission_code`, `path`, `icon`, `sort_order`, `visible`, `status`) VALUES
+(1, 0, '控制台', 1, 'dashboard', '/dashboard', 'dashboard', 1, 1, 1),
+(2, 0, '用户管理', 1, 'user_manage', '/user', 'user', 2, 1, 1),
+(3, 0, '课程管理', 1, 'course_manage', '/course', 'book', 3, 1, 1),
+(4, 0, '编程练习', 1, 'practice', '/practice', 'code', 4, 1, 1),
+(5, 0, '在线考试', 1, 'exam', '/exam', 'edit', 5, 1, 1),
+(6, 0, '班级管理', 1, 'class_manage', '/class', 'team', 6, 1, 1),
+(7, 0, '营销管理', 1, 'marketing', '/marketing', 'shopping', 7, 1, 1),
+(8, 0, '系统设置', 1, 'system', '/system', 'setting', 8, 1, 1);
+
+-- 二级菜单 - 用户管理
+INSERT INTO `sys_permission` (`id`, `parent_id`, `permission_name`, `permission_type`, `permission_code`, `path`, `icon`, `sort_order`, `visible`, `status`) VALUES
+(101, 2, '用户列表', 1, 'user_list', '/user/list', NULL, 1, 1, 1),
+(102, 2, '角色管理', 1, 'role_manage', '/user/role', NULL, 2, 1, 1),
+(103, 2, '权限管理', 1, 'permission_manage', '/user/permission', NULL, 3, 1, 1);
+
+-- 二级菜单 - 课程管理
+INSERT INTO `sys_permission` (`id`, `parent_id`, `permission_name`, `permission_type`, `permission_code`, `path`, `icon`, `sort_order`, `visible`, `status`) VALUES
+(201, 3, '课程列表', 1, 'course_list', '/course/list', NULL, 1, 1, 1),
+(202, 3, '课程分类', 1, 'course_category', '/course/category', NULL, 2, 1, 1),
+(203, 3, '视频管理', 1, 'video_manage', '/course/video', NULL, 3, 1, 1);
+
+-- 二级菜单 - 编程练习
+INSERT INTO `sys_permission` (`id`, `parent_id`, `permission_name`, `permission_type`, `permission_code`, `path`, `icon`, `sort_order`, `visible`, `status`) VALUES
+(301, 4, '题目管理', 1, 'question_manage', '/practice/question', NULL, 1, 1, 1),
+(302, 4, '提交记录', 1, 'practice_record', '/practice/record', NULL, 2, 1, 1);
+
+-- 二级菜单 - 在线考试
+INSERT INTO `sys_permission` (`id`, `parent_id`, `permission_name`, `permission_type`, `permission_code`, `path`, `icon`, `sort_order`, `visible`, `status`) VALUES
+(401, 5, '考试管理', 1, 'exam_manage', '/exam/list', NULL, 1, 1, 1),
+(402, 5, '阅卷管理', 1, 'grading_manage', '/exam/grading', NULL, 2, 1, 1),
+(403, 5, '成绩查询', 1, 'score_query', '/exam/score', NULL, 3, 1, 1);
+
+-- 二级菜单 - 班级管理
+INSERT INTO `sys_permission` (`id`, `parent_id`, `permission_name`, `permission_type`, `permission_code`, `path`, `icon`, `sort_order`, `visible`, `status`) VALUES
+(501, 6, '班级列表', 1, 'class_list', '/class/list', NULL, 1, 1, 1),
+(502, 6, '排课管理', 1, 'schedule_manage', '/class/schedule', NULL, 2, 1, 1);
+
+-- 二级菜单 - 营销管理
+INSERT INTO `sys_permission` (`id`, `parent_id`, `permission_name`, `permission_type`, `permission_code`, `path`, `icon`, `sort_order`, `visible`, `status`) VALUES
+(601, 7, '会员管理', 1, 'membership_manage', '/marketing/membership', NULL, 1, 1, 1),
+(602, 7, '团购管理', 1, 'group_buy_manage', '/marketing/groupbuy', NULL, 2, 1, 1),
+(603, 7, '优惠券管理', 1, 'coupon_manage', '/marketing/coupon', NULL, 3, 1, 1);
+
+-- 二级菜单 - 系统设置
+INSERT INTO `sys_permission` (`id`, `parent_id`, `permission_name`, `permission_type`, `permission_code`, `path`, `icon`, `sort_order`, `visible`, `status`) VALUES
+(701, 8, '基础配置', 1, 'basic_config', '/system/config', NULL, 1, 1, 1),
+(702, 8, '文件管理', 1, 'file_manage', '/system/file', NULL, 2, 1, 1);
+
+-- 按钮权限 - 用户管理
+INSERT INTO `sys_permission` (`id`, `parent_id`, `permission_name`, `permission_type`, `permission_code`, `path`, `icon`, `sort_order`, `visible`, `status`) VALUES
+(1001, 101, '新增用户', 2, 'user:add', NULL, NULL, 1, 1, 1),
+(1002, 101, '编辑用户', 2, 'user:edit', NULL, NULL, 2, 1, 1),
+(1003, 101, '删除用户', 2, 'user:delete', NULL, NULL, 3, 1, 1),
+(1004, 101, '重置密码', 2, 'user:reset_pwd', NULL, NULL, 4, 1, 1);
+
+-- 按钮权限 - 课程管理
+INSERT INTO `sys_permission` (`id`, `parent_id`, `permission_name`, `permission_type`, `permission_code`, `path`, `icon`, `sort_order`, `visible`, `status`) VALUES
+(2001, 201, '新增课程', 2, 'course:add', NULL, NULL, 1, 1, 1),
+(2002, 201, '编辑课程', 2, 'course:edit', NULL, NULL, 2, 1, 1),
+(2003, 201, '发布课程', 2, 'course:publish', NULL, NULL, 3, 1, 1),
+(2004, 201, '删除课程', 2, 'course:delete', NULL, NULL, 4, 1, 1);
+
+-- 按钮权限 - 考试管理
+INSERT INTO `sys_permission` (`id`, `parent_id`, `permission_name`, `permission_type`, `permission_code`, `path`, `icon`, `sort_order`, `visible`, `status`) VALUES
+(4001, 401, '创建考试', 2, 'exam:add', NULL, NULL, 1, 1, 1),
+(4002, 401, '编辑考试', 2, 'exam:edit', NULL, NULL, 2, 1, 1),
+(4003, 401, '发布考试', 2, 'exam:publish', NULL, NULL, 3, 1, 1),
+(4004, 402, '开始阅卷', 2, 'grading:start', NULL, NULL, 1, 1, 1),
+(4005, 402, '提交评分', 2, 'grading:submit', NULL, NULL, 2, 1, 1);
+
+-- ============================================================================
+-- 初始化角色权限关联 (超级管理员拥有全部权限)
+-- ============================================================================
+-- 超级管理员 - 全部权限
+INSERT INTO `sys_role_permission` (`role_id`, `permission_id`) VALUES
+(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8),
+(1, 101), (1, 102), (1, 103), (1, 201), (1, 202), (1, 203),
+(1, 301), (1, 302), (1, 401), (1, 402), (1, 403),
+(1, 501), (1, 502), (1, 601), (1, 602), (1, 603), (1, 701), (1, 702),
+(1, 1001), (1, 1002), (1, 1003), (1, 1004),
+(1, 2001), (1, 2002), (1, 2003), (1, 2004),
+(1, 4001), (1, 4002), (1, 4003), (1, 4004), (1, 4005);
+
+-- 教师 - 课程和考试相关权限
+INSERT INTO `sys_role_permission` (`role_id`, `permission_id`) VALUES
+(2, 1), (2, 3), (2, 4), (2, 5), (2, 6),
+(2, 201), (2, 202), (2, 203), (2, 301), (2, 302),
+(2, 401), (2, 402), (2, 403), (2, 501), (2, 502),
+(2, 2001), (2, 2002), (2, 2003),
+(2, 4001), (2, 4002), (2, 4004), (2, 4005);
+
+-- 运营 - 营销和用户管理权限
+INSERT INTO `sys_role_permission` (`role_id`, `permission_id`) VALUES
+(3, 1), (3, 2), (3, 7),
+(3, 101), (3, 102), (3, 601), (3, 602), (3, 603),
+(3, 1001), (3, 1002);
+
+-- 学生 - 学习相关权限
+INSERT INTO `sys_role_permission` (`role_id`, `permission_id`) VALUES
+(4, 1), (4, 4), (4, 5);
+
+-- ============================================================================
+-- 初始化示例课程 (2条)
+-- ============================================================================
+
+-- 课程1: Python入门
+INSERT INTO `course_info` (`id`, `title`, `cover`, `description`, `teacher_id`, `language_type`, `difficulty`, `min_age`, `max_age`, `price`, `original_price`, `status`, `trial_chapter_count`, `total_chapters`, `total_duration`, `student_count`) VALUES
+(1, 'Python编程入门 - 从零开始学编程', '/uploads/course/python-intro.jpg', '本课程专为8-14岁青少年设计，通过趣味案例和互动练习，带领学生从零基础掌握Python编程。课程涵盖变量、数据类型、条件判断、循环、函数、列表等核心概念，每节课配有动手练习项目。', 2, 'PYTHON', 1, 8, 14, 199.00, 299.00, 1, 3, 24, 57600, 156);
+
+-- 课程2: Scratch启蒙
+INSERT INTO `course_info` (`id`, `title`, `cover`, `description`, `teacher_id`, `language_type`, `difficulty`, `min_age`, `max_age`, `price`, `original_price`, `status`, `trial_chapter_count`, `total_chapters`, `total_duration`, `student_count`) VALUES
+(2, 'Scratch趣味编程启蒙 - 积木式学编程', '/uploads/course/scratch-start.jpg', '适合5-10岁小朋友的编程启蒙课程，使用Scratch 3.0积木式编程环境，通过制作动画、游戏和互动故事，培养孩子的逻辑思维和创造力。无需任何编程基础，让孩子在玩乐中爱上编程。', 2, 'SCRATCH3', 1, 5, 10, 149.00, 199.00, 1, 2, 18, 43200, 328);
+
+-- 课程1的章节
+INSERT INTO `course_chapter` (`id`, `course_id`, `parent_id`, `title`, `description`, `sort_order`, `is_trial`) VALUES
+(1, 1, 0, '第一章 Python初识', '认识Python编程语言', 1, 1),
+(2, 1, 1, '1.1 Python是什么', '了解Python的历史和应用领域', 1, 1),
+(3, 1, 1, '1.2 安装Python环境', '手把手教你安装Python和编辑器', 2, 1),
+(4, 1, 1, '1.3 第一个Python程序', '编写并运行Hello World', 3, 0),
+(5, 1, 0, '第二章 变量与数据类型', '学习Python中的基本数据类型', 2, 0),
+(6, 1, 5, '2.1 变量的使用', '如何定义和使用变量', 1, 0),
+(7, 1, 5, '2.2 数字与字符串', '整数、浮点数和字符串操作', 2, 0);
+
+-- 课程2的章节
+INSERT INTO `course_chapter` (`id`, `course_id`, `parent_id`, `title`, `description`, `sort_order`, `is_trial`) VALUES
+(10, 2, 0, '第一章 认识Scratch', '了解Scratch编程环境', 1, 1),
+(11, 2, 10, '1.1 Scratch界面介绍', '认识舞台、角色和积木区', 1, 1),
+(12, 2, 10, '1.2 让小猫动起来', '第一个Scratch动画', 2, 1),
+(13, 2, 0, '第二章 动画制作', '学习制作有趣的动画', 2, 0),
+(14, 2, 13, '2.1 旋转与移动', '角色的运动控制', 1, 0),
+(15, 2, 13, '2.2 说话和声音', '添加对话和音效', 2, 0);
+
+-- 课程1的视频
+INSERT INTO `course_video` (`id`, `chapter_id`, `course_id`, `title`, `original_url`, `hls_playlist_url`, `duration`, `cover`, `transcode_status`, `sort_order`) VALUES
+(1, 2, 1, 'Python是什么', '/videos/raw/python-1-1.mp4', '/videos/hls/python-1-1/playlist.m3u8', 2400, '/uploads/video/python-1-1.jpg', 2, 1),
+(2, 3, 1, '安装Python环境', '/videos/raw/python-1-2.mp4', '/videos/hls/python-1-2/playlist.m3u8', 1800, '/uploads/video/python-1-2.jpg', 2, 1),
+(3, 4, 1, '第一个Python程序', '/videos/raw/python-1-3.mp4', '/videos/hls/python-1-3/playlist.m3u8', 1500, '/uploads/video/python-1-3.jpg', 2, 1),
+(4, 6, 1, '变量的使用', '/videos/raw/python-2-1.mp4', '/videos/hls/python-2-1/playlist.m3u8', 2100, '/uploads/video/python-2-1.jpg', 2, 1),
+(5, 7, 1, '数字与字符串', '/videos/raw/python-2-2.mp4', '/videos/hls/python-2-2/playlist.m3u8', 2700, '/uploads/video/python-2-2.jpg', 2, 1);
+
+-- 课程2的视频
+INSERT INTO `course_video` (`id`, `chapter_id`, `course_id`, `title`, `original_url`, `hls_playlist_url`, `duration`, `cover`, `transcode_status`, `sort_order`) VALUES
+(10, 11, 2, 'Scratch界面介绍', '/videos/raw/scratch-1-1.mp4', '/videos/hls/scratch-1-1/playlist.m3u8', 1200, '/uploads/video/scratch-1-1.jpg', 2, 1),
+(11, 12, 2, '让小猫动起来', '/videos/raw/scratch-1-2.mp4', '/videos/hls/scratch-1-2/playlist.m3u8', 1800, '/uploads/video/scratch-1-2.jpg', 2, 1),
+(12, 14, 2, '旋转与移动', '/videos/raw/scratch-2-1.mp4', '/videos/hls/scratch-2-1/playlist.m3u8', 1500, '/uploads/video/scratch-2-1.jpg', 2, 1),
+(13, 15, 2, '说话和声音', '/videos/raw/scratch-2-2.mp4', '/videos/hls/scratch-2-2/playlist.m3u8', 1800, '/uploads/video/scratch-2-2.jpg', 2, 1);
+
+-- ============================================================================
+-- 初始化示例练习题 (3条)
+-- ============================================================================
+
+-- 题目1: Python - Hello World
+INSERT INTO `practice_question` (`id`, `title`, `description`, `language`, `difficulty`, `time_limit`, `memory_limit`, `template_code`, `tags`, `submit_count`, `accept_count`, `accept_rate`, `status`) VALUES
+(1, 'Hello World', '请编写一个Python程序，在控制台输出 \"Hello, World!\"。\n\n要求：\n1. 使用print函数输出\n2. 输出内容必须完全匹配（包括标点符号）', 'PYTHON', 1, 1000, 128, '# 请在下方编写你的代码\nprint("Hello, World!")', '入门,输出,基础', 520, 498, 95.77, 1);
+
+-- 题目1的测试用例
+INSERT INTO `test_case` (`question_id`, `input_data`, `expected_output`, `is_sample`, `score`, `sort_order`) VALUES
+(1, '', 'Hello, World!\n', 1, 100.00, 1);
+
+-- 题目2: Python - 两数之和
+INSERT INTO `practice_question` (`id`, `title`, `description`, `language`, `difficulty`, `time_limit`, `memory_limit`, `template_code`, `tags`, `submit_count`, `accept_count`, `accept_rate`, `status`) VALUES
+(2, '两数之和', '给定两个整数a和b，请计算它们的和并输出结果。\n\n输入格式：\n一行，包含两个用空格分隔的整数a和b（-10000 <= a, b <= 10000）\n\n输出格式：\n一行，输出a+b的结果', 'PYTHON', 1, 1000, 128, '# 请在下方编写你的代码\na, b = map(int, input().split())\nprint(a + b)', '入门,输入输出,基础运算', 380, 345, 90.79, 1);
+
+-- 题目2的测试用例
+INSERT INTO `test_case` (`question_id`, `input_data`, `expected_output`, `is_sample`, `score`, `sort_order`) VALUES
+(2, '1 2', '3\n', 1, 25.00, 1),
+(2, '10 20', '30\n', 0, 25.00, 2),
+(2, '-5 8', '3\n', 0, 25.00, 3),
+(2, '0 0', '0\n', 0, 25.00, 4);
+
+-- 题目3: Scratch - 制作小猫走路动画
+INSERT INTO `practice_question` (`id`, `title`, `description`, `language`, `difficulty`, `time_limit`, `memory_limit`, `template_code`, `tags`, `submit_count`, `accept_count`, `accept_rate`, `status`) VALUES
+(3, '制作小猫走路动画', '使用Scratch制作一个小猫走路的动画。\n\n要求：\n1. 点击绿旗后，小猫从舞台左侧走到右侧\n2. 小猫在移动过程中要有走路的造型切换效果\n3. 走到舞台右侧后停止\n4. 动画流畅自然', 'SCRATCH3', 1, 5000, 256, NULL, 'Scratch,动画,入门,角色', 210, 185, 88.10, 1);
+
+-- 题目3的测试用例（Scratch题目测试用例为评分标准）
+INSERT INTO `test_case` (`question_id`, `input_data`, `expected_output`, `is_sample`, `score`, `sort_order`) VALUES
+(3, '{"check_type": "has_green_flag"}', '{"pass": true}', 1, 25.00, 1),
+(3, '{"check_type": "has_move_blocks"}', '{"pass": true}', 1, 25.00, 2),
+(3, '{"check_type": "has_costume_change"}', '{"pass": true}', 0, 25.00, 3),
+(3, '{"check_type": "has_stop_condition"}', '{"pass": true}', 0, 25.00, 4);
+
+-- ============================================================================
+-- 初始化用户积分和等级
+-- ============================================================================
+INSERT INTO `user_point` (`user_id`, `total_point`, `available_point`, `frozen_point`) VALUES
+(1, 0, 0, 0),
+(2, 500, 500, 0),
+(3, 120, 120, 0),
+(4, 80, 80, 0);
+
+INSERT INTO `user_level` (`user_id`, `level_name`, `level`, `experience`, `next_level_experience`) VALUES
+(1, 'GOLD', 3, 800, 1000),
+(2, 'PLATINUM', 4, 1500, 2000),
+(3, 'BRONZE', 1, 120, 100),
+(4, 'BRONZE', 1, 80, 100);
+
+-- ============================================================================
+-- 初始化示例勋章
+-- ============================================================================
+INSERT INTO `medal` (`id`, `medal_name`, `medal_icon`, `description`, `condition_type`, `condition_value`, `sort_order`, `status`) VALUES
+(1, '初学者', '/medal/beginner.png', '完成第一门课程', 'COURSE_COUNT', 1, 1, 1),
+(2, '编程达人', '/medal/expert.png', '通过10道编程题', 'PRACTICE_COUNT', 10, 2, 1),
+(3, '考试之星', '/medal/exam_star.png', '通过3次考试', 'EXAM_PASS', 3, 3, 1),
+(4, '坚持打卡', '/medal/sign_in.png', '连续签到7天', 'SIGN_IN_DAYS', 7, 4, 1),
+(5, '积分王者', '/medal/point_king.png', '累计获得1000积分', 'POINT_TOTAL', 1000, 5, 1);
+
+-- ============================================================================
+-- 初始化示例会员套餐
+-- ============================================================================
+INSERT INTO `membership` (`id`, `membership_name`, `days`, `price`, `original_price`, `discount_rate`, `benefits_json`, `sort_order`, `status`) VALUES
+(1, '月度会员', 30, 29.90, 49.90, 0.60, '{"course_discount": 0.9, "exclusive_content": false}', 1, 1),
+(2, '季度会员', 90, 69.90, 149.70, 0.47, '{"course_discount": 0.85, "exclusive_content": true}', 2, 1),
+(3, '年度会员', 365, 199.90, 598.80, 0.33, '{"course_discount": 0.8, "exclusive_content": true, "priority_support": true}', 3, 1);
+
+-- ============================================================================
+-- 初始化示例优惠券
+-- ============================================================================
+INSERT INTO `coupon` (`id`, `coupon_name`, `coupon_type`, `face_value`, `min_amount`, `total_count`, `used_count`, `start_time`, `end_time`, `status`) VALUES
+(1, '新人专享满减券', 1, 50.00, 200.00, 1000, 156, '2026-01-01 00:00:00', '2026-12-31 23:59:59', 1),
+(2, '课程折扣券', 2, 0.85, 0.00, 500, 89, '2026-01-01 00:00:00', '2026-12-31 23:59:59', 1),
+(3, '会员兑换券', 3, 0.00, 0.00, 200, 45, '2026-01-01 00:00:00', '2026-12-31 23:59:59', 1);
+
+-- ============================================================================
+-- 初始化示例积分商品
+-- ============================================================================
+INSERT INTO `point_goods` (`id`, `goods_name`, `goods_image`, `description`, `point_price`, `stock`, `exchanged_count`, `sort_order`, `status`) VALUES
+(1, '编程主题笔记本', '/goods/notebook.jpg', '精美编程主题笔记本，内含Python速查表', 200, 500, 35, 1, 1),
+(2, '魔高定制T恤', '/goods/tshirt.jpg', '魔高平台定制T恤，100%纯棉', 500, 200, 18, 2, 1),
+(3, 'Scratch主题贴纸', '/goods/sticker.jpg', 'Scratch角色主题贴纸套装', 100, 1000, 120, 3, 1);
+
+-- ============================================================================
+-- 初始化示例教学班级
+-- ============================================================================
+INSERT INTO `teach_class` (`id`, `class_name`, `teacher_id`, `course_id`, `description`, `max_students`, `current_students`, `status`) VALUES
+(1, 'Python入门-2026春季班', 2, 1, '2026年春季Python入门课程教学班', 50, 2, 1),
+(2, 'Scratch启蒙-2026春季班', 2, 2, '2026年春季Scratch启蒙课程教学班', 40, 2, 1);
+
+-- 班级学员
+INSERT INTO `class_student` (`class_id`, `user_id`, `status`) VALUES
+(1, 3, 1),
+(1, 4, 1),
+(2, 3, 1),
+(2, 4, 1);
+
+-- ============================================================================
+-- 初始化示例排课
+-- ============================================================================
+INSERT INTO `class_schedule` (`class_id`, `teacher_id`, `course_id`, `schedule_date`, `start_time`, `end_time`, `classroom`, `topic`, `status`) VALUES
+(1, 2, 1, '2026-06-20', '09:00:00', '10:30:00', '线上教室A', 'Python初识', 1),
+(1, 2, 1, '2026-06-27', '09:00:00', '10:30:00', '线上教室A', '变量与数据类型', 1),
+(2, 2, 2, '2026-06-21', '14:00:00', '15:00:00', '线上教室B', '认识Scratch', 1),
+(2, 2, 2, '2026-06-28', '14:00:00', '15:00:00', '线上教室B', '动画制作', 1);
+
+-- ============================================================================
+-- 初始化登录日志
+-- ============================================================================
+INSERT INTO `sys_user_login_log` (`user_id`, `username`, `login_ip`, `login_location`, `device_type`, `browser`, `os`, `login_result`, `fail_reason`, `login_time`) VALUES
+(1, 'admin', '127.0.0.1', '本地', 'PC', 'Chrome 120', 'Windows 11', 1, NULL, NOW()),
+(2, 'teacher1', '192.168.1.100', '北京市', 'PC', 'Chrome 120', 'Windows 11', 1, NULL, NOW()),
+(3, 'student1', '10.0.0.55', '上海市', 'MOBILE', 'Safari', 'iOS 17', 1, NULL, NOW());
+
+-- ============================================================================
+-- 脚本执行完毕
+-- 数据库: magao_platform
+-- 总计: 48张表 + 初始化测试数据
+-- ============================================================================

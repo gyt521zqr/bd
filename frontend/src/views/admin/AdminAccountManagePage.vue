@@ -72,6 +72,7 @@
       :data="pagedAccountList"
       stripe
       v-loading="loading"
+      empty-text="暂无数据"
       @selection-change="handleSelectionChange"
     >
       <el-table-column type="selection" width="50" />
@@ -225,8 +226,7 @@ const searchForm = reactive({
 
 async function handleSearch() {
   pageNum.value = 1
-  await fetchAccountList()
-  ElMessage.success('搜索完成')
+  if (await fetchAccountList()) ElMessage.success('搜索完成')
 }
 
 function resetSearch() {
@@ -241,62 +241,9 @@ function handleSelectionChange(val: AdminAccount[]) {
   selectedRows.value = val
 }
 
-// ==================== Mock 数据 ====================
+// ==================== 列表数据 ====================
 
-const accountList = ref<AdminAccount[]>([
-  {
-    id: 1,
-    username: 'admin',
-    nickname: '系统管理员',
-    password: '123456',
-    role: 'super_admin',
-    phone: '13800000001',
-    email: 'admin@magao.com',
-    remark: '系统初始化超级管理员账号',
-    lastLogin: '2024-06-18 10:30:00',
-    status: 'enabled',
-    createTime: '2024-01-01 09:00:00',
-  },
-  {
-    id: 2,
-    username: 'manager01',
-    nickname: '运营经理',
-    password: '123456',
-    role: 'admin',
-    phone: '13800000002',
-    email: 'manager01@magao.com',
-    remark: '负责日常内容与赛事管理',
-    lastLogin: '2024-06-17 14:20:00',
-    status: 'enabled',
-    createTime: '2024-02-15 11:00:00',
-  },
-  {
-    id: 3,
-    username: 'operator01',
-    nickname: '录入员小王',
-    password: '123456',
-    role: 'operator',
-    phone: '13800000003',
-    email: 'operator01@magao.com',
-    remark: '负责题库录入与阅卷',
-    lastLogin: '2024-06-15 09:15:00',
-    status: 'enabled',
-    createTime: '2024-03-10 13:30:00',
-  },
-  {
-    id: 4,
-    username: 'operator02',
-    nickname: '客服小李',
-    password: '123456',
-    role: 'operator',
-    phone: '13800000004',
-    email: 'operator02@magao.com',
-    remark: '负责用户咨询与订单处理',
-    lastLogin: '2024-05-20 16:45:00',
-    status: 'disabled',
-    createTime: '2024-04-05 10:00:00',
-  },
-])
+const accountList = ref<AdminAccount[]>([])
 
 // ==================== 搜索过滤与分页 ====================
 
@@ -329,15 +276,17 @@ const superAdminCount = computed(() => accountList.value.filter(a => a.role === 
 
 // ==================== 获取列表 ====================
 
-/** 获取管理员账号列表，调用 bridge 列表接口，失败时回退到本地 mock 数据 */
-async function fetchAccountList() {
+/** 获取管理员账号列表（仅来自后端；失败清空并提示，不回填本地数据） */
+async function fetchAccountList(): Promise<boolean> {
   loading.value = true
   try {
     const res = await accountApi.list({ pageNum: 1, pageSize: 9999 })
-    const list = res?.data?.list || res?.data?.records || []
-    if (list.length) accountList.value = list
-  } catch (e) {
-    console.warn('load failed, fallback to mock', e)
+    accountList.value = res?.data?.list || res?.data?.records || []
+    return true
+  } catch {
+    accountList.value = []
+    ElMessage.error('数据加载失败，请检查网络或稍后重试')
+    return false
   } finally {
     loading.value = false
   }
@@ -481,38 +430,8 @@ async function submitForm() {
         opLog.logCreate('新增管理员账号「' + form.username + '」')
       }
       formDialogVisible.value = false
-    } catch (e) {
-      console.warn('save account failed, fallback to local', e)
-      if (isEdit.value && form.id != null) {
-        const idx = accountList.value.findIndex(a => a.id === form.id)
-        if (idx !== -1) {
-          accountList.value[idx] = {
-            ...accountList.value[idx],
-            username: form.username,
-            nickname: form.nickname,
-            role: form.role,
-            phone: form.phone,
-            email: form.email,
-            status: form.status,
-          }
-        }
-      } else {
-        accountList.value.unshift({
-          id: Date.now(),
-          username: form.username,
-          nickname: form.nickname,
-          password: form.password || '123456',
-          role: form.role,
-          phone: form.phone,
-          email: form.email,
-          remark: form.remark,
-          lastLogin: '-',
-          status: form.status || 'enabled',
-          createTime: nowStr(),
-        } as AdminAccount)
-      }
-      ElMessage.warning('后端未连接，已本地保存（未落库）')
-      formDialogVisible.value = false
+    } catch {
+      ElMessage.error('操作失败，请检查网络或稍后重试')
     } finally {
       submitting.value = false
     }
@@ -521,16 +440,17 @@ async function submitForm() {
 
 // ==================== 状态切换 ====================
 
-function handleStatusChange(row: AdminAccount, val: boolean) {
+async function handleStatusChange(row: AdminAccount, val: boolean) {
   const next: AdminStatus = val ? 'enabled' : 'disabled'
+  try {
+    await accountApi.update(row.id, { status: next })
+  } catch {
+    ElMessage.error('操作失败，请检查网络或稍后重试')
+    return
+  }
   row.status = next
   ElMessage.success(next === 'enabled' ? '已启用' : '已禁用')
   opLog.logStatusChange('管理员账号「' + row.username + '」状态变更为' + (next === 'enabled' ? '启用' : '禁用'))
-  try {
-    accountApi.update(row.id, { status: next })
-  } catch (e) {
-    console.warn('status change fallback', e)
-  }
 }
 
 // ==================== 重置密码 ====================
@@ -588,9 +508,8 @@ async function submitResetPassword() {
       resetPwdDialogVisible.value = false
       ElMessage.success('密码重置成功')
       opLog.logUpdate('重置管理员「' + resetPwdTarget.value?.username + '」的密码')
-    } catch (e) {
-      console.warn('reset password fallback', e)
-      ElMessage.warning('后端未连接，重置未落库')
+    } catch {
+      ElMessage.error('操作失败，请检查网络或稍后重试')
     } finally {
       resetPwdSubmitting.value = false
     }
@@ -608,8 +527,9 @@ function handleDelete(row: AdminAccount) {
     .then(async () => {
       try {
         await accountApi.remove(row.id)
-      } catch (e) {
-        console.warn('delete fallback', e)
+      } catch {
+        ElMessage.error('操作失败，请检查网络或稍后重试')
+        return
       }
       accountList.value = accountList.value.filter(a => a.id !== row.id)
       ElMessage.success('删除成功')
@@ -631,8 +551,9 @@ function handleBatchDelete() {
       const ids = selectedRows.value.map(r => r.id)
       try {
         await accountApi.batchRemove(ids)
-      } catch (e) {
-        console.warn('batch delete fallback', e)
+      } catch {
+        ElMessage.error('操作失败，请检查网络或稍后重试')
+        return
       }
       accountList.value = accountList.value.filter(a => !ids.includes(a.id))
       ElMessage.success('删除成功')

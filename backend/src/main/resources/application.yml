@@ -1,0 +1,154 @@
+# Magao后端项目 - 主配置文件
+# 包含公共配置和激活的环境配置
+server:
+  # 服务端口
+  port: 8080
+  # Servlet上下文路径
+  servlet:
+    context-path: /
+
+spring:
+  # 活跃的环境配置（dev/prod）
+  profiles:
+    active: dev
+  # 应用名称
+  application:
+    name: magao-backend
+  # 文件上传配置
+  servlet:
+    multipart:
+      # 单个文件最大大小
+      max-file-size: 100MB
+      # 单次请求最大大小
+      max-request-size: 200MB
+  # Jackson全局配置
+  jackson:
+    # 日期格式化
+    date-format: yyyy-MM-dd HH:mm:ss
+    # 时区设置
+    time-zone: GMT+8
+    # 序列化配置
+    serialization:
+      # 忽略空值字段
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+# MyBatis-Plus配置
+mybatis-plus:
+  # Mapper XML映射文件路径
+  mapper-locations: classpath*:mapper/**/*.xml
+  # 实体类包扫描路径
+  type-aliases-package: com.magao.backend.module.*.entity
+  configuration:
+    # 开启驼峰命名自动映射（数据库字段user_name -> Java字段userName）
+    map-underscore-to-camel-case: true
+    # 开启SQL日志打印（生产环境应关闭）
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      # 逻辑删除字段值（已删除）
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+      # 主键类型（自增）
+      id-type: auto
+
+# JWT配置
+jwt:
+  # JWT密钥：必须通过 JWT_SECRET 环境变量注入（至少 64 位随机串）。
+  # 括号内仅为本地开发默认值，生产 profile 在 application-prod.yml 中强制要求显式配置，
+  # 未配置会直接启动失败，避免沿用公开默认值导致可伪造 Token。
+  secret: ${JWT_SECRET:dev-only-jwt-secret-please-override-with-JWT_SECRET-min-64-chars}
+  # Access Token过期时间（单位：毫秒，默认2小时）
+  access-token-expire: 7200000
+  # Refresh Token过期时间（单位：毫秒，默认7天）
+  refresh-token-expire: 604800000
+  # Token请求头名称
+  header: Authorization
+  # Token前缀
+  prefix: "Bearer "
+
+# MinIO对象存储配置（默认禁用，生产环境使用 TOS 替代）
+minio:
+  enabled: false
+  # MinIO服务地址
+  endpoint: http://localhost:9000
+  # 访问密钥
+  access-key: minioadmin
+  # 秘密密钥
+  secret-key: minioadmin
+  # 默认存储桶名称
+  default-bucket: magao
+  # 文件上传白名单（允许的文件扩展名）
+  upload-whitelist:
+    - jpg
+    - jpeg
+    - png
+    - gif
+    - bmp
+    - webp
+    - svg
+    - mp4
+    - mp3
+    - wav
+    - pdf
+    - doc
+    - docx
+    - xls
+    - xlsx
+    - ppt
+    - pptx
+    - zip
+    - rar
+    - sb3
+    - py
+    - cpp
+
+# 火山引擎 TOS 对象存储配置（默认启用）
+tos:
+  enabled: true
+  endpoint: http://localhost:9000
+  region: cn-beijing
+  access-key: dev-access-key
+  secret-key: dev-secret-key
+  default-bucket: magao
+  public-domain: http://localhost:9000
+
+# 火山引擎 VOD 视频点播配置（默认禁用）
+vod:
+  enabled: false
+  access-key:
+  secret-key:
+  region: cn-north-1
+  play-domain:
+  space-name: magao-video
+
+# Judge0代码评测服务配置
+judge0:
+  # Judge0 API地址
+  api-url: http://localhost:2358
+  # Judge0 API密钥
+  api-key: your-judge0-api-key
+  # 评测超时时间（秒）
+  timeout: 30
+
+# SpringDoc OpenAPI / Swagger文档配置
+springdoc:
+  api-docs:
+    # 是否启用API文档
+    enabled: true
+    # API文档路径
+    path: /v3/api-docs
+  swagger-ui:
+    # 是否启用Swagger UI
+    enabled: true
+    # Swagger UI路径
+    path: /swagger-ui.html
+
+# 日志配置
+logging:
+  level:
+    # 项目日志级别
+    com.magao.backend: debug
+    # MyBatis SQL日志
+    com.magao.backend.module.*.mapper: debug

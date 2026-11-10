@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.magao.backend.module.growth.mapper.PointLogMapper">
+    <sql id="baseColumns">
+        id, user_id, change_point, after_point, change_type, description, biz_id, create_time
+    </sql>
+</mapper>

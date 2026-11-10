@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:xlink="http://www.w3.org/1999/xlink">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta http-equiv="cache-control" content="no-cache">
+<meta charset="utf-8">
+
+<head>
+<title>ScratchJr 编辑器</title>
+<script src="./js/jquery.min.js"></script>
+<script src="./js/jquery.cokie.min.js"></script>
+<script>
+    /**
+     * 嵌入式 ScratchJr 编辑器页面
+     * 通过 postMessage 与父窗口通信，支持以下消息：
+     * - scratchjr:ready        编辑器已加载完成
+     * - scratchjr:save         用户点击保存，携带 sjr 内容和作品名称
+     * - scratchjr:cover        获取到封面图片(base64)
+     * - scratchjr:projectData  项目数据响应
+     * - scratchjr:runStatus    运行状态变化
+     *
+     * 接收的消息：
+     * - scratchjr:getProject   请求获取项目数据
+     * - scratchjr:loadProject  请求加载项目
+     * - scratchjr:runProject   请求运行项目（绿旗）
+     * - scratchjr:stopProject  请求停止项目
+     * - scratchjr:getCover     请求获取封面图
+     * - scratchjr:saveProject  请求保存项目
+     */
+
+    function urlParams(paramName) {
+        var reg = new RegExp('[?&]' + paramName + '=([^&]*)[&]?', 'i')
+        var paramVal = window.location.search.match(reg)
+        return paramVal == null ? '' : decodeURIComponent(paramVal[1])
+    }
+
+    function dataURLtoBlob(dataurl) {
+        var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+            bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+        while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        return new Blob([u8arr], { type: mime });
+    }
+
+    // 简单 UUID 生成
+    function uuid() {
+        var s = []
+        var hexDigits = '0123456789abcdef'
+        for (var i = 0; i < 36; i++) {
+            s[i] = hexDigits.substr(Math.floor(Math.random() * 0x10), 1)
+        }
+        s[14] = '4'
+        s[19] = hexDigits.substr((s[19] & 0x3) | 0x8, 1)
+        s[8] = s[13] = s[18] = s[23] = '-'
+        return s.join('')
+    }
+
+    window.scratchJrPage = 'editor';
+    window.JrConfig = {
+        onInit: function() {
+            console.log('[ScratchJr] onInit');
+            window.parent.postMessage({ type: 'scratchjr:ready', stage: 'init' }, '*');
+        },
+        onLoaded: function() {
+            console.log('[ScratchJr] onLoaded');
+            // 检查 URL 参数中是否有需要加载的项目
+            var projectUrl = urlParams('project');
+            if (projectUrl && window.ScratchJr) {
+                window.ScratchJr.loadProjectSjr(projectUrl);
+            }
+            // 通知父窗口编辑器已完全加载
+            window.parent.postMessage({ type: 'scratchjr:ready', stage: 'loaded' }, '*');
+        },
+        onSaveCloud: function(contents, name) {
+            console.log('[ScratchJr] onSaveCloud, name:', name);
+            // 通过 postMessage 将项目内容发送给父窗口
+            window.parent.postMessage({
+                type: 'scratchjr:save',
+                contents: contents,
+                name: name,
+                uuid: uuid()
+            }, '*');
+            // 同时获取封面图
+            if (window.ScratchJr && window.ScratchJr.getProjectCover) {
+                window.ScratchJr.getProjectCover(function(cover) {
+                    window.parent.postMessage({
+                        type: 'scratchjr:cover',
+                        cover: cover,
+                        name: name
+                    }, '*');
+                });
+            }
+        },
+    };
+
+    // 监听父窗口消息
+    window.addEventListener('message', function(event) {
+        var data = event.data;
+        if (!data || !data.type) return;
+        console.log('[ScratchJr] Received message from parent:', data.type);
+        switch (data.type) {
+            case 'scratchjr:getProject':
+                // 父窗口请求获取当前项目
+                if (window.ScratchJr && window.ScratchJr.getProjectSjr) {
+                    window.ScratchJr.getProjectSjr(function(contents, name) {
+                        window.parent.postMessage({
+                            type: 'scratchjr:projectData',
+                            contents: contents,
+                            name: name
+                        }, '*');
+                    });
+                } else {
+                    // 编辑器尚未就绪，返回空数据
+                    window.parent.postMessage({
+                        type: 'scratchjr:projectData',
+                        contents: '',
+                        name: 'ScratchJr项目'
+                    }, '*');
+                }
+                break;
+            case 'scratchjr:getCover':
+                // 父窗口请求获取封面
+                if (window.ScratchJr && window.ScratchJr.getProjectCover) {
+                    window.ScratchJr.getProjectCover(function(cover) {
+                        window.parent.postMessage({
+                            type: 'scratchjr:coverData',
+                            cover: cover
+                        }, '*');
+                    });
+                }
+                break;
+            case 'scratchjr:loadProject':
+                // 父窗口请求加载项目
+                if (window.ScratchJr && window.ScratchJr.loadProjectSjr && data.url) {
+                    window.ScratchJr.loadProjectSjr(data.url);
+                }
+                break;
+            case 'scratchjr:runProject':
+                // 父窗口请求运行项目（触发绿旗）
+                try {
+                    if (window.ScratchJr && window.ScratchJr.runStrips) {
+                        ScratchJr.runStrips();
+                        window.parent.postMessage({ type: 'scratchjr:runStatus', running: true }, '*');
+                    } else {
+                        // 回退：尝试点击 Go 按钮
+                        var goBtn = document.querySelector('.go');
+                        if (goBtn) goBtn.click();
+                        window.parent.postMessage({ type: 'scratchjr:runStatus', running: true }, '*');
+                    }
+                } catch(e) {
+                    console.log('[ScratchJr] Run trigger error:', e);
+                    window.parent.postMessage({ type: 'scratchjr:runStatus', running: false, error: String(e) }, '*');
+                }
+                break;
+            case 'scratchjr:stopProject':
+                // 父窗口请求停止项目
+                try {
+                    if (window.ScratchJr && window.ScratchJr.stopStripsFromTop) {
+                        ScratchJr.stopStripsFromTop();
+                        window.parent.postMessage({ type: 'scratchjr:runStatus', running: false }, '*');
+                    } else {
+                        var stopBtn = document.querySelector('.resetall');
+                        if (stopBtn) stopBtn.click();
+                        window.parent.postMessage({ type: 'scratchjr:runStatus', running: false }, '*');
+                    }
+                } catch(e) {
+                    console.log('[ScratchJr] Stop trigger error:', e);
+                    window.parent.postMessage({ type: 'scratchjr:runStatus', running: false, error: String(e) }, '*');
+                }
+                break;
+            case 'scratchjr:saveProject':
+                // 父窗口请求保存项目（触发保存流程）
+                try {
+                    if (window.ScratchJr && window.ScratchJr.getProjectSjr) {
+                        window.ScratchJr.getProjectSjr(function(contents, name) {
+                            window.parent.postMessage({
+                                type: 'scratchjr:save',
+                                contents: contents,
+                                name: name,
+                                uuid: uuid()
+                            }, '*');
+                        });
+                    }
+                } catch(e) {
+                    console.log('[ScratchJr] Save trigger error:', e);
+                }
+                break;
+        }
+    });
+
+    // 超时保护：如果 onLoaded 在 10 秒内未被调用，强制移除遮罩并通知父窗口
+    setTimeout(function() {
+        try {
+            var backdrop = document.getElementById('backdrop');
+            var modaldialog = document.getElementById('modaldialog');
+            if (backdrop) {
+                backdrop.style.display = 'none';
+                backdrop.setAttribute('class', 'modal-backdrop fade');
+            }
+            if (modaldialog) {
+                modaldialog.style.display = 'none';
+                modaldialog.setAttribute('class', 'modal fade');
+            }
+            console.log('[ScratchJr] Force lifted curtain after timeout');
+            // 通知父窗口编辑器已就绪
+            window.parent.postMessage({ type: 'scratchjr:ready', stage: 'loaded' }, '*');
+        } catch (e) {
+            console.log('[ScratchJr] Curtain lift error:', e);
+        }
+    }, 10000);
+</script>
+<script type="text/javascript" src="app.bundle.js"></script>
+</head>
+<body style="background: white; margin: 0; overflow: hidden;">
+<div class="frame" id="frame"></div>
+<div class="libframe" id="libframe"></div>
+<div class="paintframe" id="paintframe"></div>
+</body>
+</html>

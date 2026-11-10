@@ -89,7 +89,18 @@ const RESOURCE_MAP: Record<string, ResourceAdapter> = {
     normalize: (r) => ({ ...r, name: r.name ?? r.couponName ?? '', value: r.value ?? r.discountValue ?? 0, expireTime: r.expireTime ?? r.validEndTime ?? null }),
     serialize: (f) => ({ ...f, couponName: f.couponName ?? f.name, discountValue: f.discountValue ?? f.value, validEndTime: f.validEndTime ?? f.expireTime }),
   },
-  category: { normalize: (r) => ({ ...r, createdAt: r.createdAt ?? r.createTime ?? null }) },
+  category: {
+    // 后端 status 为 Integer(0/1)，页面用 'enabled'/'disabled'；读写双向归一
+    normalize: (r) => ({
+      ...r,
+      createdAt: r.createdAt ?? r.createTime ?? null,
+      status: r.status === 1 ? 'enabled' : r.status === 0 ? 'disabled' : r.status,
+    }),
+    serialize: (f) => ({
+      ...f,
+      status: f.status === 'enabled' ? 1 : f.status === 'disabled' ? 0 : f.status,
+    }),
+  },
   partner: { normalize: (r) => ({ ...r, createdAt: r.createdAt ?? r.createTime ?? null }) },
   banner: {
     normalize: (r) => ({ ...r, enabled: r.enabled ?? (r.status === 1), createdAt: r.createdAt ?? r.createTime ?? null }),

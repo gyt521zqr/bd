@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.magao.backend.module.exam.mapper.ExamMapper">
+    <sql id="baseColumns">
+        id, title, description, exam_type, course_id, teacher_id, start_time, end_time,
+        duration, total_score, pass_score, status, anti_cheat, max_switch_screen,
+        show_answer, create_time, update_time, deleted
+    </sql>
+</mapper>

@@ -4,6 +4,15 @@
       <h2>学员管理</h2>
     </div>
 
+    <el-alert
+      title="功能提示"
+      description="设置会员、批量导入暂未接入后端服务，操作不会保存。"
+      type="info"
+      :closable="false"
+      show-icon
+      style="margin-bottom: 16px"
+    />
+
     <!-- 统计卡片 -->
     <div class="stats-cards">
       <div class="stat-card">
@@ -67,7 +76,7 @@
     <!-- 操作按钮区 -->
     <div class="action-bar">
       <el-button type="primary" :icon="Plus" @click="handleAdd">添加学员</el-button>
-      <el-button :icon="Upload" @click="importDialogVisible = true">批量导入</el-button>
+      <el-button :icon="Upload" title="暂未接入后端服务" @click="importDialogVisible = true">批量导入</el-button>
       <el-button :icon="Download" @click="downloadTemplate">下载导入模板</el-button>
       <el-button :icon="Download" @click="handleExport">批量导出</el-button>
       <el-button type="danger" :icon="Delete" @click="handleBatchDelete" :disabled="!selectedRows.length">批量删除</el-button>
@@ -78,6 +87,7 @@
       :data="pagedStudentList"
       stripe
       v-loading="loading"
+      empty-text="暂无数据"
       @selection-change="handleSelectionChange"
     >
       <el-table-column type="selection" width="50" />
@@ -111,7 +121,7 @@
           <el-button size="small" text :type="row.status === 'enabled' ? 'danger' : 'success'" @click="handleToggleStatus(row)">
             {{ row.status === 'enabled' ? '禁用' : '启用' }}
           </el-button>
-          <el-button size="small" text type="warning" @click="handleSetMember(row)">设置会员</el-button>
+          <el-button size="small" text type="warning" title="暂未接入后端服务" @click="handleSetMember(row)">设置会员</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -299,8 +309,7 @@ const searchForm = reactive({
 
 async function handleSearch() {
   pageNum.value = 1
-  await fetchStudentList()
-  ElMessage.success('搜索完成')
+  if (await fetchStudentList()) ElMessage.success('搜索完成')
 }
 function resetSearch() {
   searchForm.name = ''
@@ -316,29 +325,7 @@ function handleSelectionChange(val: any[]) {
   selectedRows.value = val
 }
 
-// Mock 数据 20 条（含会员状态）
-const studentList = ref([
-  { id: 1, name: '张三', school: '北京市第一小学', grade: '小学', phone: '13800138001', parentPhone: '13900139001', examCount: 3, lastLogin: '2024-06-18 10:30', status: 'enabled', memberStatus: 'active', memberType: 'yearly', memberExpiry: '2025-06-18' },
-  { id: 2, name: '李四', school: '北京市第二中学', grade: '初中', phone: '13800138002', parentPhone: '13900139002', examCount: 5, lastLogin: '2024-06-17 14:20', status: 'enabled', memberStatus: 'active', memberType: 'quarterly', memberExpiry: '2024-09-17' },
-  { id: 3, name: '王五', school: '北京市第三中学', grade: '高中', phone: '13800138003', parentPhone: '13900139003', examCount: 2, lastLogin: '2024-06-16 09:15', status: 'enabled', memberStatus: 'none', memberType: '', memberExpiry: '' },
-  { id: 4, name: '赵六', school: '北京市实验小学', grade: '小学', phone: '13800138004', parentPhone: '13900139004', examCount: 1, lastLogin: '2024-06-15 16:45', status: 'disabled', memberStatus: 'expired', memberType: 'monthly', memberExpiry: '2024-05-15' },
-  { id: 5, name: '孙七', school: '北京市第四中学', grade: '初中', phone: '13800138005', parentPhone: '13900139005', examCount: 4, lastLogin: '2024-06-14 11:00', status: 'enabled', memberStatus: 'active', memberType: 'monthly', memberExpiry: '2024-07-14' },
-  { id: 6, name: '周八', school: '北京市第五中学', grade: '高中', phone: '13800138006', parentPhone: '13900139006', examCount: 6, lastLogin: '2024-06-13 08:30', status: 'enabled', memberStatus: 'active', memberType: 'yearly', memberExpiry: '2025-06-13' },
-  { id: 7, name: '吴九', school: '北京市第六小学', grade: '小学', phone: '13800138007', parentPhone: '13900139007', examCount: 0, lastLogin: '2024-06-12 15:20', status: 'disabled', memberStatus: 'expired', memberType: 'quarterly', memberExpiry: '2024-04-12' },
-  { id: 8, name: '郑十', school: '北京市第七中学', grade: '初中', phone: '13800138008', parentPhone: '13900139008', examCount: 3, lastLogin: '2024-06-11 13:10', status: 'enabled', memberStatus: 'active', memberType: 'permanent', memberExpiry: '' },
-  { id: 9, name: '钱十一', school: '北京市第八中学', grade: '高中', phone: '13800138009', parentPhone: '13900139009', examCount: 7, lastLogin: '2024-06-10 10:00', status: 'enabled', memberStatus: 'active', memberType: 'yearly', memberExpiry: '2025-06-10' },
-  { id: 10, name: '陈十二', school: '北京市第九小学', grade: '小学', phone: '13800138010', parentPhone: '13900139010', examCount: 2, lastLogin: '2024-06-09 17:30', status: 'enabled', memberStatus: 'none', memberType: '', memberExpiry: '' },
-  { id: 11, name: '刘十三', school: '北京市第十中学', grade: '初中', phone: '13800138011', parentPhone: '13900139011', examCount: 4, lastLogin: '2024-06-08 09:45', status: 'enabled', memberStatus: 'active', memberType: 'monthly', memberExpiry: '2024-07-08' },
-  { id: 12, name: '黄十四', school: '北京市第十一中学', grade: '高中', phone: '13800138012', parentPhone: '13900139012', examCount: 5, lastLogin: '2024-06-07 14:00', status: 'disabled', memberStatus: 'expired', memberType: 'yearly', memberExpiry: '2024-03-07' },
-  { id: 13, name: '林十五', school: '北京市第十二小学', grade: '小学', phone: '13800138013', parentPhone: '13900139013', examCount: 1, lastLogin: '2024-06-06 11:20', status: 'enabled', memberStatus: 'none', memberType: '', memberExpiry: '' },
-  { id: 14, name: '杨十六', school: '北京市第十三中学', grade: '初中', phone: '13800138014', parentPhone: '13900139014', examCount: 3, lastLogin: '2024-06-05 16:10', status: 'enabled', memberStatus: 'active', memberType: 'quarterly', memberExpiry: '2024-09-05' },
-  { id: 15, name: '朱十七', school: '北京市第十四中学', grade: '高中', phone: '13800138015', parentPhone: '13900139015', examCount: 8, lastLogin: '2024-06-04 08:50', status: 'enabled', memberStatus: 'active', memberType: 'yearly', memberExpiry: '2025-06-04' },
-  { id: 16, name: '徐十八', school: '北京市第十五小学', grade: '小学', phone: '13800138016', parentPhone: '13900139016', examCount: 2, lastLogin: '2024-06-03 13:40', status: 'enabled', memberStatus: 'none', memberType: '', memberExpiry: '' },
-  { id: 17, name: '马十九', school: '北京市第十六中学', grade: '初中', phone: '13800138017', parentPhone: '13900139017', examCount: 6, lastLogin: '2024-06-02 10:15', status: 'disabled', memberStatus: 'expired', memberType: 'monthly', memberExpiry: '2024-05-02' },
-  { id: 18, name: '胡二十', school: '北京市第十七中学', grade: '高中', phone: '13800138018', parentPhone: '13900139018', examCount: 4, lastLogin: '2024-06-01 15:00', status: 'enabled', memberStatus: 'active', memberType: 'permanent', memberExpiry: '' },
-  { id: 19, name: '郭二十一', school: '北京市第十八小学', grade: '小学', phone: '13800138019', parentPhone: '13900139019', examCount: 0, lastLogin: '2024-05-31 09:30', status: 'enabled', memberStatus: 'none', memberType: '', memberExpiry: '' },
-  { id: 20, name: '何二十二', school: '北京市第十九中学', grade: '初中', phone: '13800138020', parentPhone: '13900139020', examCount: 3, lastLogin: '2024-05-30 14:20', status: 'enabled', memberStatus: 'none', memberType: '', memberExpiry: '' },
-])
+const studentList = ref<any[]>([])
 
 // 按搜索条件筛选后的列表（name/school/grade/phone/memberStatus）
 const filteredStudentList = computed(() => {
@@ -361,15 +348,17 @@ const pagedStudentList = computed(() => {
 // 总条数：跟随筛选结果动态变化
 const total = computed(() => filteredStudentList.value.length)
 
-/** 获取学员列表，调用 bridge 列表接口，失败时回退到本地 mock 数据 */
-async function fetchStudentList() {
+/** 获取学员列表（仅来自后端；失败清空并提示，不回填本地数据） */
+async function fetchStudentList(): Promise<boolean> {
   loading.value = true
   try {
     const res = await studentApi.list({ pageNum: 1, pageSize: 9999 })
-    const list = res?.data?.list || res?.data?.records || []
-    if (list.length) studentList.value = list
-  } catch (e) {
-    console.warn('load failed, fallback to mock', e)
+    studentList.value = res?.data?.list || res?.data?.records || []
+    return true
+  } catch {
+    studentList.value = []
+    ElMessage.error('数据加载失败，请检查网络或稍后重试')
+    return false
   } finally {
     loading.value = false
   }
@@ -461,17 +450,8 @@ async function submitForm() {
         opLog.logCreate('新增学员「' + form.name + '」')
       }
       formDialogVisible.value = false
-    } catch (e) {
-      console.warn('save student failed, fallback to local', e)
-      // 后端不可用时降级为本地写入，保证页面始终可用
-      if (isEdit.value && form.id != null) {
-        const idx = studentList.value.findIndex(s => s.id === form.id)
-        if (idx !== -1) studentList.value[idx] = { ...studentList.value[idx], ...form } as any
-      } else {
-        studentList.value.unshift({ ...form, id: Date.now(), examCount: 0, lastLogin: '-', status: form.status || 'enabled' } as any)
-      }
-      ElMessage.warning('后端未连接，已本地保存（未落库）')
-      formDialogVisible.value = false
+    } catch {
+      ElMessage.error('操作失败，请检查网络或稍后重试')
     } finally {
       submitting.value = false
     }
@@ -498,26 +478,8 @@ function handleSetMember(row: any) {
   memberForm.memberExpiry = row.memberExpiry || ''
   memberDialogVisible.value = true
 }
-async function submitMemberForm() {
-  if (!memberFormRef.value) return
-  await memberFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    memberSubmitting.value = true
-    try {
-      await new Promise<void>(resolve => setTimeout(resolve, 500))
-      const idx = studentList.value.findIndex(s => s.id === memberTargetStudent.value.id)
-      if (idx !== -1) {
-        studentList.value[idx].memberStatus = 'active'
-        studentList.value[idx].memberType = memberForm.memberType
-        studentList.value[idx].memberExpiry = memberForm.memberType === 'permanent' ? '' : memberForm.memberExpiry
-      }
-      memberDialogVisible.value = false
-      ElMessage.success('会员设置成功')
-      opLog.logUpdate('设置学员「' + memberTargetStudent.value?.name + '」为' + memberTypeMap[memberForm.memberType])
-    } finally {
-      memberSubmitting.value = false
-    }
-  })
+function submitMemberForm() {
+  ElMessage.warning('该能力暂未接入后端服务，操作未生效')
 }
 
 // 查看详情
@@ -537,9 +499,8 @@ async function handleResetPassword(row: any) {
     await studentApi.update(row.id, { password: '123456' })
     ElMessage.success('密码已重置为 123456')
     opLog.logUpdate('重置学员「' + row.name + '」的密码')
-  } catch (e) {
-    console.warn('reset password fallback', e)
-    ElMessage.warning('后端未连接，重置未落库')
+  } catch {
+    ElMessage.error('操作失败，请检查网络或稍后重试')
   }
 }
 
@@ -550,14 +511,15 @@ async function handleToggleStatus(row: any) {
   try {
     await ElMessageBox.confirm(`确定${label}学员 "${row.name}" 吗？`, '提示', { type: 'warning' })
   } catch { return }
+  try {
+    await studentApi.update(row.id, { status: next })
+  } catch {
+    ElMessage.error('操作失败，请检查网络或稍后重试')
+    return
+  }
   row.status = next
   ElMessage.success(`${label}成功`)
   opLog.logStatusChange('学员「' + row.name + '」状态变更为' + (row.status === 'enabled' ? '启用' : '禁用'))
-  try {
-    await studentApi.update(row.id, { status: next })
-  } catch (e) {
-    console.warn('toggle status fallback', e)
-  }
 }
 
 // 批量删除
@@ -569,8 +531,9 @@ async function handleBatchDelete() {
   const ids = selectedRows.value.map(r => r.id)
   try {
     await studentApi.batchRemove(ids)
-  } catch (e) {
-    console.warn('batch delete fallback', e)
+  } catch {
+    ElMessage.error('操作失败，请检查网络或稍后重试')
+    return
   }
   studentList.value = studentList.value.filter(s => !ids.includes(s.id))
   ElMessage.success('删除成功')
@@ -588,32 +551,18 @@ const importResult = reactive({ success: 0, fail: 0, errors: [] as string[] })
 function handleFileChange(file: any) {
   importFile.value = file.raw
 }
-async function submitImport() {
+function submitImport() {
   if (!importFile.value) {
     ElMessage.warning('请先选择文件')
     return
   }
-  importing.value = true
-  try {
-    await new Promise(resolve => setTimeout(resolve, 800))
-    importResult.success = 18
-    importResult.fail = 2
-    importResult.errors = ['第 5 行：手机号格式错误', '第 12 行：姓名为空']
-    importDialogVisible.value = false
-    importResultVisible.value = true
-    ElMessage.success('导入完成')
-    opLog.logImport('批量导入' + importResult.success + '条学员数据')
-  } finally {
-    importing.value = false
-    importFile.value = null
-    uploadRef.value?.clearFiles()
-  }
+  ElMessage.warning('该能力暂未接入后端服务，操作未生效')
 }
 
 // 下载模板
 function downloadTemplate() {
   const headers = ['姓名', '学校', '年级(小学/初中/高中)', '手机号', '家长电话', '邮箱', '备注']
-  const csv = headers.join(',') + '\n示例姓名,示例学校,小学,13800138000,13900139000,test@example.com,备注信息'
+  const csv = headers.join(',')
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

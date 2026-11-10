@@ -1,0 +1,461 @@
+version: "3.8"
+
+# ============================================================================
+# Magao Platform - 生产环境 Docker Compose 配置（方案2：Nginx 静态托管）
+# ============================================================================
+# 架构说明：
+#   - Nginx 直接托管前端 dist + scratch-gui 静态文件（无独立 scratch 容器）
+#   - scratch-gui 编译产物存放于 /data/static/scratch-gui/（宿主机目录）
+#   - scratch-jr 编译产物存放于 /data/static/scratch-jr/（宿主机目录）
+#   - 对标 52coding 线上生产部署架构
+# ============================================================================
+# 使用方法:
+#   1. 复制 .env.example 为 .env 并填写实际配置
+#   2. 先执行 ./deploy-scratch-gui.sh 编译部署 scratch-gui
+#   3. docker-compose -f docker/docker-compose.yml up -d
+#   4. 查看日志: docker-compose -f docker/docker-compose.yml logs -f
+# ============================================================================
+
+services:
+  # ==========================================================================
+  # MySQL 8.0 - 主数据库
+  # ==========================================================================
+  mysql:
+    image: mysql:8.0
+    container_name: magao-mysql
+    restart: always
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-magao_platform}
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+      MYSQL_INIT_CONNECT: "SET NAMES utf8mb4"
+      TZ: Asia/Shanghai
+    command:
+      - --max-connections=2000
+      - --innodb-buffer-pool-size=4G
+      - --innodb-log-file-size=1G
+      - --innodb-flush-log-at-trx-commit=2
+      - --slow-query-log=1
+      - --long-query-time=1
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --sql-mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ../scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - magao-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+          cpus: "2.0"
+        reservations:
+          memory: 2G
+          cpus: "0.5"
+
+  # ==========================================================================
+  # Redis 7 - 缓存与消息队列（持久化配置）
+  # ==========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: magao-redis
+    restart: always
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command:
+      - redis-server
+      - --maxmemory 4gb
+      - --maxmemory-policy allkeys-lru
+      - --appendonly yes
+      - --appendfsync everysec
+      - --save 900 1
+      - --save 300 10
+      - --save 60 10000
+      - --requirepass ${REDIS_PASSWORD}
+      - --bind 0.0.0.0
+      - --protected-mode no
+      - --tcp-keepalive 60
+    volumes:
+      - redis_data:/data
+    networks:
+      - magao-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 5G
+          cpus: "1.0"
+        reservations:
+          memory: 512M
+          cpus: "0.25"
+
+  # ==========================================================================
+  # RabbitMQ 3.12 - 消息队列（持久化队列配置）
+  # ==========================================================================
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: magao-rabbitmq
+    restart: always
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-magao}
+      TZ: Asia/Shanghai
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+    networks:
+      - magao-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1.0"
+        reservations:
+          memory: 512M
+          cpus: "0.25"
+
+  # ==========================================================================
+  # TOS 和 VOD 说明：
+  # 本项目已经迁移到火山引擎 TOS（对象存储）和 VOD（视频点播）
+  # 不需要在 Docker Compose 中部署 MinIO 容器，因为文件存储到火山引擎云服务了
+  # 如需继续使用自建 MinIO，请取消注释下面配置
+  # ==========================================================================
+
+  # # MinIO - 对象存储
+  # minio:
+  #   image: minio/minio:latest
+  #   container_name: magao-minio
+  #   restart: always
+  #   ports:
+  #     - "${MINIO_API_PORT:-9000}:9000"
+  #     - "${MINIO_CONSOLE_PORT:-9001}:9001"
+  #   environment:
+  #     MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+  #     MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+  #     TZ: Asia/Shanghai
+  #   command: server /data --console-address ":9001"
+  #   volumes:
+  #     - minio_data:/data
+  #   networks:
+  #     - magao-network
+  #   healthcheck:
+  #     test: ["CMD", "mc", "ready", "local"]
+  #     interval: 15s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 30s
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 1G
+  #         cpus: "0.5"
+  #       reservations:
+  #         memory: 256M
+  #         cpus: "0.1"
+
+  # ==========================================================================
+  # Judge0 CE - 代码评测沙箱（3 实例扩容）
+  # ==========================================================================
+  judge0-1:
+    image: judge0/judge0-ce:latest
+    container_name: magao-judge0-1
+    restart: always
+    privileged: true
+    ports:
+      - "${JUDGE0_PORT_1:-2358}:2358"
+    environment:
+      ENABLE_NETWORK: "false"
+      CPU_TIME_LIMIT: 5
+      MEMORY_LIMIT: 262144
+      EXTRA_POOL_SIZE: 30
+      RUNNER_USER_ID: 65534
+      RUNNER_GROUP_ID: 65534
+      TZ: Asia/Shanghai
+    volumes:
+      - judge0_1_data:/var/judge0
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - magao-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:2358/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2.0"
+        reservations:
+          memory: 1G
+          cpus: "0.5"
+
+  judge0-2:
+    image: judge0/judge0-ce:latest
+    container_name: magao-judge0-2
+    restart: always
+    privileged: true
+    ports:
+      - "${JUDGE0_PORT_2:-2359}:2359"
+    environment:
+      ENABLE_NETWORK: "false"
+      CPU_TIME_LIMIT: 5
+      MEMORY_LIMIT: 262144
+      EXTRA_POOL_SIZE: 30
+      RUNNER_USER_ID: 65534
+      RUNNER_GROUP_ID: 65534
+      TZ: Asia/Shanghai
+    volumes:
+      - judge0_2_data:/var/judge0
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - magao-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:2358/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2.0"
+        reservations:
+          memory: 1G
+          cpus: "0.5"
+
+  judge0-3:
+    image: judge0/judge0-ce:latest
+    container_name: magao-judge0-3
+    restart: always
+    privileged: true
+    ports:
+      - "${JUDGE0_PORT_3:-2360}:2360"
+    environment:
+      ENABLE_NETWORK: "false"
+      CPU_TIME_LIMIT: 5
+      MEMORY_LIMIT: 262144
+      EXTRA_POOL_SIZE: 30
+      RUNNER_USER_ID: 65534
+      RUNNER_GROUP_ID: 65534
+      TZ: Asia/Shanghai
+    volumes:
+      - judge0_3_data:/var/judge0
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - magao-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:2358/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2.0"
+        reservations:
+          memory: 1G
+          cpus: "0.5"
+
+  # ==========================================================================
+  # Backend - Spring Boot 后端服务（支持1000并发资源调整）
+  # ==========================================================================
+  backend:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.backend
+      args:
+        MAVEN_PROFILE: prod
+    container_name: magao-backend
+    restart: always
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      JAVA_OPTS: "-Xms4g -Xmx8g -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/app/logs/heapdump.hprof -XX:ParallelGCThreads=8 -XX:ConcGCThreads=4 -Djava.security.egd=file:/dev/./urandom"
+      TZ: Asia/Shanghai
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-magao_platform}?useUnicode=true&characterEncoding=utf8mb4&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      # 生产必填：application-prod.yml 不提供默认值，缺失则后端启动失败
+      JWT_SECRET: ${JWT_SECRET}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-admin}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      # TOS 配置（替换 MinIO）
+      TOS_ENABLED: "true"
+      TOS_ENDPOINT: ${TOS_ENDPOINT}
+      TOS_REGION: ${TOS_REGION:-cn-beijing}
+      TOS_ACCESS_KEY: ${TOS_ACCESS_KEY}
+      TOS_SECRET_KEY: ${TOS_SECRET_KEY}
+      TOS_BUCKET: ${TOS_BUCKET:-magao}
+      TOS_PUBLIC_DOMAIN: ${TOS_PUBLIC_DOMAIN:-}
+      # VOD 配置
+      VOD_ENABLED: "true"
+      VOD_ACCESS_KEY: ${VOD_ACCESS_KEY}
+      VOD_SECRET_KEY: ${VOD_SECRET_KEY}
+      VOD_REGION: ${VOD_REGION:-cn-north-1}
+      VOD_PLAY_DOMAIN: ${VOD_PLAY_DOMAIN:-}
+      VOD_SPACE_NAME: ${VOD_SPACE_NAME:-magao-video}
+      JUDGE0_URL: http://judge0-1:2358
+      JUDGE0_URL_2: http://judge0-2:2359
+      JUDGE0_URL_3: http://judge0-3:2360
+      SERVER_TOMCAT_THREADS_MAX: 800
+      SERVER_TOMCAT_THREADS_MIN_SPARE: 200
+      SERVER_TOMCAT_ACCEPT_COUNT: 200
+      SERVER_TOMCAT_MAX_CONNECTIONS: 10000
+      FILE_UPLOAD_PATH: /app/uploads
+    volumes:
+      - backend_logs:/app/logs
+      - backend_uploads:/app/uploads
+    networks:
+      - magao-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      # 启用 TOS 后不再依赖 minio
+      # minio:
+      #   condition: service_healthy
+      judge0-1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 10G
+          cpus: "8.0"
+        reservations:
+          memory: 4G
+          cpus: "2.0"
+
+  # ==========================================================================
+  # Nginx - 反向代理 + 前端静态资源 + Scratch 静态托管（方案2）
+  # ==========================================================================
+  # 关键变更：
+  #   - 移除了独立的 scratch-gui 和 scratch-jr 容器
+  #   - Nginx 直接通过宿主机目录挂载托管 /data/static/scratch-gui/ 和 /data/static/scratch-jr/
+  #   - 前端 dist 也改为宿主机目录挂载 /data/frontend/dist
+  #   - 对标 52coding 线上架构
+  # ==========================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: magao-nginx
+    restart: always
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      # Nginx 主配置
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # 子配置（包含 production.conf 主站点配置）
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      # 前端 dist 静态资源（宿主机目录）
+      - /data/frontend/dist:/data/frontend/dist:ro
+      # Scratch GUI 静态资源（宿主机目录）
+      - /data/static/scratch-gui:/data/static/scratch-gui:ro
+      # Scratch Jr 静态资源（宿主机目录）
+      - /data/static/scratch-jr:/data/static/scratch-jr:ro
+      # 日志
+      - nginx_logs:/var/log/nginx
+      # SSL 证书
+      - nginx_certs:/etc/nginx/certs:ro
+    networks:
+      - magao-network
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 64M
+          cpus: "0.1"
+
+# ============================================================================
+# 网络配置
+# ============================================================================
+networks:
+  magao-network:
+    name: magao-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+          gateway: 172.28.0.1
+
+# ============================================================================
+# 数据卷配置
+# ============================================================================
+volumes:
+  mysql_data:
+    name: magao-mysql-data
+  redis_data:
+    name: magao-redis-data
+  rabbitmq_data:
+    name: magao-rabbitmq-data
+  minio_data:
+    name: magao-minio-data
+  judge0_1_data:
+    name: magao-judge0-1-data
+  judge0_2_data:
+    name: magao-judge0-2-data
+  judge0_3_data:
+    name: magao-judge0-3-data
+  backend_logs:
+    name: magao-backend-logs
+  backend_uploads:
+    name: magao-backend-uploads
+  nginx_logs:
+    name: magao-nginx-logs
+  nginx_certs:
+    name: magao-nginx-certs

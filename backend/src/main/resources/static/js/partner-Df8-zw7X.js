@@ -1,0 +1,1 @@
+import{e,j as a,S as n}from"./index-CN52DKLq.js";async function c(r){try{return await e.get("/partners",{params:r})}catch{const t=a(n.PARTNERS,null);return t?{code:200,data:t}:null}}function u(r){return e.post("/partners",r)}function o(r,t){return e.put(`/partners/${r}`,t)}function l(r){return e.delete(`/partners/${r}`)}export{u as c,l as d,c as g,o as u};

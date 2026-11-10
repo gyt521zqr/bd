@@ -1,0 +1,133 @@
+/**
+ * SCSS 全局变量定义
+ * 包含颜色、字体、间距、圆角等设计令牌
+ * 采用少儿编程教育平台的科技专业配色方案 */
+
+/* ====== 主色调（科技专业） ====== */
+$primary-color: #165DFF;           /* 主色：科技蓝 */
+$primary-light: #4080FF;           /* 主色浅色 */
+$primary-lighter: #E8F0FF;         /* 主色更浅 */
+$primary-dark: #0E42D2;             /* 主色深色 */
+$primary-bg: #E8F0FF;               /* 主色背景 */
+
+/* ====== 辅助行动色（转化按钮） ====== */
+$action-color: #FF7D00;             /* 行动色：橙色 */
+$action-light: #FFAD4D;             /* 行动色浅色 */
+$action-dark: #E06800;              /* 行动色深色 */
+$action-bg: #FFF4E0;                /* 行动色背景 */
+
+/* ====== 功能色 ====== */
+$success-color: #36D399;            /* 成功/荣誉色 */
+$success-light: #7EEAC0;            /* 成功色浅色 */
+$success-bg: #E8FFF5;               /* 成功色背景 */
+
+$warning-color: #FF9500;            /* 警告色 */
+$warning-light: #FFB84D;            /* 警告色浅色 */
+$warning-bg: #FFF6E0;               /* 警告色背景 */
+
+$danger-color: #F53F3F;             /* 失败/危险色 */
+$danger-light: #F76965;             /* 危险色浅色 */
+$danger-bg: #FFECE8;                /* 危险色背景 */
+
+$info-color: #165DFF;               /* 信息色（同主色） */
+$info-light: #4080FF;               /* 信息色浅色 */
+$info-bg: #E8F0FF;                  /* 信息色背景 */
+
+/* ====== 中性色 ====== */
+$black: #000000;                     /* 纯黑 */
+$white: #FFFFFF;                     /* 纯白 */
+$text-title: #1D2129;               /* 标题文字 */
+$text-primary: #333333;             /* 正文文字 */
+$text-body: #4E5969;                /* 正文辅助 */
+$text-regular: #666666;             /* 辅助文字 */
+$text-secondary: #999999;           /* 次要文字 */
+$text-muted: #86909C;               /* 弱化文字 */
+$text-placeholder: #C0C4CC;          /* 占位文字 */
+$border-color: #E5E7EB;             /* 分割线 */
+$border-regular: #E5E6EB;           /* 常规边框 */
+$border-light: #F0F0F0;             /* 浅边框 */
+$border-lighter: #F2F3F5;           /* 更浅边框 */
+$divider-color: #C9CDD4;            /* 分隔色 */
+$bg-color: #F5F7FA;                  /* 页面背景灰 */
+$bg-page: #F7F8FA;                  /* 页面背景 */
+$bg-white: #FFFFFF;                 /* 白色背景 */
+$bg-light: #FAFAFA;                 /* 浅灰背景 */
+$overlay-bg: rgba(0, 0, 0, 0.5);    /* 遮罩背景 */
+
+/* ====== 编辑器暗色主题（GitHub Dark 兼容） ====== */
+$editor-bg: #0D1117;
+$editor-surface: #161B22;
+$editor-surface-hover: #21262D;
+$editor-border: #30363D;
+$editor-text: #C9D1D9;
+$editor-text-muted: #8B949E;
+$editor-accent: #58A6FF;
+
+/* ====== 紫色辅助色 ====== */
+$purple-color: #7B61FF;             /* 紫色辅助：竞赛/创意 */
+$purple-light: #9B7BFF;             /* 紫色浅色 */
+$purple-bg: #F5E8FF;               /* 紫色背景 */
+
+/* ====== 奖牌色 ====== */
+$medal-gold: #FFD700;
+$medal-gold-light: #FFA500;
+$medal-silver: #C0C0C0;
+$medal-bronze: #CD7F32;
+
+/* ====== 字体 ====== */
+$font-family: "Source Han Sans SC", "Noto Sans SC", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+$font-size-xs: 12px;
+$font-size-sm: 13px;
+$font-size-base: 14px;
+$font-size-md: 16px;
+$font-size-lg: 18px;
+$font-size-xl: 20px;
+$font-size-xxl: 24px;
+$font-size-title: 28px;
+$font-size-hero: 36px;
+
+/* ====== 间距 ====== */
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 12px;
+$spacing-base: 16px;
+$spacing-lg: 20px;
+$spacing-xl: 24px;       /* 卡片内边距 */
+$spacing-xxl: 32px;
+$spacing-xxxl: 40px;      /* 模块间距（上下区块） */
+
+/* ====== 圆角 ====== */
+$radius-sm: 4px;
+$radius-base: 8px;       /* 按钮圆角 */
+$radius-md: 12px;        /* 卡片圆角 */
+$radius-lg: 16px;
+$radius-xl: 24px;
+$radius-round: 9999px;
+
+/* ====== 阴影 ====== */
+$shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+$shadow-base: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.08);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.08);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+$shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+
+/* ====== 布局 ====== */
+$header-height: 64px;
+$sidebar-width: 240px;
+$sidebar-collapsed-width: 64px;
+$footer-height: 60px;
+$content-max-width: 1200px;
+
+/* ====== 动画 ====== */
+$transition-fast: 0.15s ease;
+$transition-base: 0.2s ease;
+$transition-slow: 0.3s ease;
+$transition-hover: 0.2s ease;      /* hover 上浮+阴影加深缓动 */
+
+/* ====== 断点 ====== */
+$breakpoint-xs: 480px;
+$breakpoint-sm: 640px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 1024px;
+$breakpoint-xl: 1280px;
+$breakpoint-xxl: 1536px;

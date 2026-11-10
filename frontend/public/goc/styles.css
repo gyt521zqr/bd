@@ -1,0 +1,681 @@
+/* ==================== GoC 编程界面样式 ==================== */
+/* 模块化隔离：所有样式挂在 .goc-app 下，不污染宿主页面 */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --goc-toolbar-bg: #ffffff;
+  --goc-border: #e3e5e9;
+  --goc-border-strong: #cfd3da;
+  --goc-text: #1f2329;
+  --goc-text-muted: #6b7280;
+  --goc-green: #00a870;
+  --goc-green-dark: #00875a;
+  --goc-blue: #1f6feb;
+  --goc-red: #e34d59;
+  --goc-warning: #f08a24;
+  --goc-canvas-bg: #eaf7fe;
+  --goc-canvas-fill: #f3fbff;
+  --goc-command-bg: #fbfaf2;
+  --goc-command-line: #d5d8b9;
+  --goc-command-head: #eaf4dd;
+  --goc-io-bg: #f6f1e6;
+  --goc-io-line: #ded2ba;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #f5f6f8;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  color: var(--goc-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+.goc-app {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f5f6f8;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+/* ==================== 顶部工具栏 ==================== */
+.goc-toolbar {
+  flex-shrink: 0;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  background: var(--goc-toolbar-bg);
+  border-bottom: 1px solid var(--goc-border);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.goc-toolbar::-webkit-scrollbar { height: 0; }
+
+.goc-logo {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #35c27a, #00a870);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.goc-toolbar-divider {
+  flex-shrink: 0;
+  width: 1px;
+  height: 20px;
+  background: var(--goc-border);
+  margin: 0 2px;
+}
+
+.goc-tbtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--goc-border-strong);
+  border-radius: 4px;
+  background: #fff;
+  color: #333a45;
+  font-size: 12.5px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.goc-tbtn:hover {
+  border-color: var(--goc-green);
+  color: var(--goc-green-dark);
+  background: #f2fbf6;
+}
+
+.goc-tbtn:active { transform: translateY(1px); }
+
+.goc-tbtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.goc-tbtn-primary {
+  background: var(--goc-green);
+  border-color: var(--goc-green);
+  color: #fff;
+  font-weight: 600;
+}
+.goc-tbtn-primary:hover {
+  background: var(--goc-green-dark);
+  border-color: var(--goc-green-dark);
+  color: #fff;
+}
+
+.goc-tbtn-accent {
+  background: var(--goc-blue);
+  border-color: var(--goc-blue);
+  color: #fff;
+}
+.goc-tbtn-accent:hover {
+  background: #185cc9;
+  border-color: #185cc9;
+  color: #fff;
+}
+
+.goc-tbtn-danger {
+  border-color: #f0b4b8;
+  color: var(--goc-red);
+}
+.goc-tbtn-danger:hover {
+  background: #fef1f1;
+  border-color: var(--goc-red);
+  color: var(--goc-red);
+}
+
+.goc-btn-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.goc-project-name {
+  flex-shrink: 0;
+  width: 150px;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--goc-border-strong);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--goc-text);
+  font-size: 12.5px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.goc-project-name:focus { border-color: var(--goc-green); }
+.goc-project-name::placeholder { color: #a8adb6; }
+
+.goc-autosave {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--goc-text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.goc-autosave input { accent-color: var(--goc-green); cursor: pointer; }
+
+.goc-lang-select {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid #b7e2c8;
+  border-radius: 4px;
+  background: #eafaf1;
+  color: var(--goc-green-dark);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+.goc-toolbar-spacer { flex: 1 1 auto; min-width: 8px; }
+
+.goc-status-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.goc-status-idle { background: #f0f1f3; color: var(--goc-text-muted); }
+.goc-status-running { background: #fff4e5; color: var(--goc-warning); }
+.goc-status-running::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--goc-warning);
+  animation: goc-pulse 1s infinite;
+}
+.goc-status-success { background: #e8f8f0; color: var(--goc-green-dark); }
+.goc-status-error { background: #fdecec; color: var(--goc-red); }
+
+@keyframes goc-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* ==================== 主体区域 ==================== */
+.goc-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ---------- 左：画布 ---------- */
+.goc-canvas-panel {
+  flex: 0 0 54%;
+  min-width: 0;
+  padding: 8px;
+  background: var(--goc-canvas-bg);
+  border-right: 1px solid var(--goc-border);
+  overflow: hidden;
+}
+
+.goc-canvas-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.goc-canvas {
+  display: block;
+  background: var(--goc-canvas-fill);
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px #d9edf7;
+}
+
+/* ---------- 右：代码 + 命令 ---------- */
+.goc-right-panel {
+  flex: 1 1 46%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  overflow: hidden;
+}
+
+.goc-editor-panel {
+  flex: 1 1 52%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #1e1e1e;
+}
+
+.goc-editor-tabs {
+  flex-shrink: 0;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  background: #f3f4f6;
+  border-bottom: 1px solid var(--goc-border);
+}
+
+.goc-editor-tab {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--goc-text-muted);
+  border-bottom: 2px solid transparent;
+}
+.goc-editor-tab.is-active {
+  color: #1f2329;
+  font-weight: 600;
+  border-bottom-color: var(--goc-green);
+  background: #fff;
+}
+
+.goc-editor-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: #9aa0a8;
+}
+
+.goc-editor-container {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.goc-monaco {
+  width: 100%;
+  height: 100%;
+}
+
+.goc-code-textarea {
+  display: none;
+  width: 100%;
+  height: 100%;
+  padding: 10px 12px;
+  border: none;
+  outline: none;
+  resize: none;
+  background: #1e1e1e;
+  color: #d7dae0;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 13.5px;
+  line-height: 1.6;
+  tab-size: 4;
+}
+
+/* ---------- 常见命令 ---------- */
+.goc-command-panel {
+  flex: 1 1 48%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--goc-command-bg);
+  border-top: 1px solid #e3ddc8;
+  overflow: hidden;
+}
+
+.goc-command-header {
+  flex-shrink: 0;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #fffdf6;
+  border-bottom: 1px solid #e6e0cc;
+}
+
+.goc-command-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #e07b00;
+  letter-spacing: 1px;
+}
+
+.goc-command-sub {
+  font-size: 11px;
+  color: #b09a6a;
+}
+
+.goc-command-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 5px 6px;
+}
+
+.goc-command-tables {
+  display: grid;
+  grid-template-columns: 1.2fr 0.95fr 1.25fr;
+  gap: 5px;
+  align-items: start;
+}
+
+.goc-cmd-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 11px;
+  line-height: 1.15;
+  background: #fffef9;
+  user-select: none;
+}
+
+.goc-cmd-table th {
+  height: 20px;
+  padding: 0 3px;
+  border: 1px solid #c3d3ac;
+  background: var(--goc-command-head);
+  color: #3f6b2a;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.goc-cmd-table td {
+  height: 17px;
+  padding: 0 3px;
+  border: 1px solid var(--goc-command-line);
+  color: #2f2f2f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.goc-cmd-table tbody tr { cursor: pointer; }
+.goc-cmd-table tbody tr:hover td { background: #fff6cf; }
+.goc-cmd-table tbody tr:active td { background: #ffefb0; }
+.goc-cmd-table tbody tr.is-locked { cursor: not-allowed; opacity: 0.5; }
+.goc-cmd-table tbody tr.is-locked:hover td { background: transparent; }
+
+.goc-col-color { width: 40px; }
+.goc-col-cmd { width: 40%; }
+.goc-col-desc { width: auto; }
+
+/* C++ 命令列较长，单独加宽 */
+.goc-command-tables > .goc-cmd-table:nth-child(3) .goc-col-cmd { width: 52%; }
+
+.goc-color-cell {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.goc-swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  border-radius: 1px;
+  vertical-align: -1px;
+}
+
+.goc-color-num {
+  display: inline-block;
+  min-width: 11px;
+  font-size: 10px;
+  color: #6a6a6a;
+  text-align: left;
+}
+
+.goc-cmd-name {
+  font-family: 'Consolas', 'Courier New', monospace;
+  color: #1d5ba8;
+  font-size: 10.5px;
+}
+
+.goc-cmd-desc {
+  color: #4b4b4b;
+  font-size: 11px;
+}
+
+.goc-cmd-empty {
+  color: #c9c9b0;
+  text-align: center;
+}
+
+/* ==================== 底部 cinWin / coutWin ==================== */
+.goc-io-bar {
+  flex-shrink: 0;
+  height: 122px;
+  display: flex;
+  gap: 8px;
+  padding: 7px 9px 8px;
+  background: var(--goc-io-bg);
+  border-top: 1px solid var(--goc-io-line);
+}
+
+.goc-io-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.goc-io-cin { flex: 0 0 30%; }
+.goc-io-cout { flex: 1 1 70%; }
+
+.goc-io-head {
+  flex-shrink: 0;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px;
+}
+
+.goc-io-name {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #8a6d3b;
+}
+
+.goc-io-tip {
+  font-size: 10.5px;
+  color: #ab9c82;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.goc-io-clear {
+  margin-left: auto;
+  height: 16px;
+  padding: 0 7px;
+  border: 1px solid #d3c5ab;
+  border-radius: 3px;
+  background: #fffdf7;
+  color: #8a6d3b;
+  font-size: 10.5px;
+  font-family: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.goc-io-clear:hover { background: #fff; color: #6b5327; }
+
+.goc-io-textarea {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  padding: 3px 6px;
+  border: 1px solid #d9cdb4;
+  border-radius: 3px;
+  background: #fff;
+  color: #2b2b2b;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+}
+.goc-io-textarea:focus { border-color: #c9a24d; }
+
+.goc-io-output {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 3px 7px;
+  border: 1px solid #d9cdb4;
+  border-radius: 3px;
+  background: #fff;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #2b2b2b;
+}
+
+.goc-out-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 0;
+}
+.goc-out-info { color: #8a919b; }
+.goc-out-success { color: #0f8a52; }
+.goc-out-warn { color: #c47b00; }
+.goc-out-error { color: #d33a45; }
+.goc-out-info::before { content: '» '; }
+.goc-out-success::before { content: '✓ '; }
+.goc-out-warn::before { content: '! '; }
+.goc-out-error::before { content: '✕ '; }
+
+/* ==================== 加载遮罩 ==================== */
+.goc-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f7f9fb;
+}
+
+.goc-loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.goc-loading-spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid #e3e5e9;
+  border-top-color: var(--goc-green);
+  border-radius: 50%;
+  animation: goc-spin 0.8s linear infinite;
+}
+
+@keyframes goc-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ==================== 轻提示 ==================== */
+.goc-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 40px;
+  z-index: 999;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border-radius: 6px;
+  background: rgba(31, 35, 41, 0.9);
+  color: #fff;
+  font-size: 12.5px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  opacity: 1;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  pointer-events: none;
+}
+.goc-toast.is-out {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
+}
+
+/* ==================== 滚动条 ==================== */
+.goc-command-scroll::-webkit-scrollbar,
+.goc-io-output::-webkit-scrollbar,
+.goc-io-textarea::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.goc-command-scroll::-webkit-scrollbar-track,
+.goc-io-output::-webkit-scrollbar-track { background: transparent; }
+.goc-command-scroll::-webkit-scrollbar-thumb,
+.goc-io-output::-webkit-scrollbar-thumb {
+  background: #d3cab0;
+  border-radius: 4px;
+}
+.goc-command-scroll::-webkit-scrollbar-thumb:hover,
+.goc-io-output::-webkit-scrollbar-thumb:hover { background: #bdb195; }
+
+/* ==================== 响应式 ==================== */
+@media (max-width: 900px) {
+  .goc-body { flex-direction: column; }
+  .goc-canvas-panel {
+    flex: 0 0 40vh;
+    border-right: none;
+    border-bottom: 1px solid var(--goc-border);
+  }
+  .goc-right-panel { flex: 1 1 auto; }
+  .goc-editor-panel { flex: 1 1 46%; }
+  .goc-command-panel { flex: 1 1 54%; }
+  .goc-command-tables { grid-template-columns: 1fr 1fr; }
+  .goc-command-tables .goc-cmd-table:last-child { grid-column: span 2; }
+  .goc-io-bar { height: 108px; }
+  .goc-io-cin { flex: 0 0 38%; }
+}
+
+@media (max-width: 640px) {
+  .goc-project-name { width: 108px; }
+  .goc-autosave { display: none; }
+  .goc-command-tables { grid-template-columns: 1fr; }
+  .goc-command-tables .goc-cmd-table:last-child { grid-column: auto; }
+  .goc-io-bar { height: 96px; }
+  .goc-io-tip { display: none; }
+}

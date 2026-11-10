@@ -1,0 +1,1 @@
+import{e as a,j as o,S as n}from"./index-CN52DKLq.js";async function r(){try{return await a.get("/about/config")}catch{const t=o(n.ABOUT_CONFIG,null);return t?{code:200,data:t}:null}}function u(t){return a.put("/about/config",t)}export{r as g,u};

@@ -4,6 +4,15 @@
       <h2>教师管理</h2>
     </div>
 
+    <el-alert
+      title="功能提示"
+      description="分配权限暂未接入后端服务，操作不会保存。"
+      type="info"
+      :closable="false"
+      show-icon
+      style="margin-bottom: 16px"
+    />
+
     <!-- 统计卡片 -->
     <div class="stats-cards">
       <div class="stat-card">
@@ -72,7 +81,7 @@
     </div>
 
     <!-- 数据表格 -->
-    <el-table :data="pagedTeacherList" stripe v-loading="loading" @selection-change="handleSelectionChange">
+    <el-table :data="pagedTeacherList" stripe v-loading="loading" empty-text="暂无数据" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="50" />
       <el-table-column prop="id" label="ID" width="60" />
       <el-table-column prop="name" label="姓名" width="100" />
@@ -110,7 +119,7 @@
           <el-button size="small" text type="primary" @click="handleEdit(row)">编辑</el-button>
           <el-button size="small" text type="primary" @click="handleViewCourses(row)">查看授课记录</el-button>
           <el-button size="small" text type="warning" @click="handleResetPassword(row)">重置密码</el-button>
-          <el-button size="small" text type="primary" @click="handleAssignPermission(row)">分配权限</el-button>
+          <el-button size="small" text type="primary" title="暂未接入后端服务" @click="handleAssignPermission(row)">分配权限</el-button>
           <el-button size="small" text :type="row.status === 'enabled' ? 'danger' : 'success'" @click="handleToggleStatus(row)">
             {{ row.status === 'enabled' ? '禁用' : '启用' }}
           </el-button>
@@ -230,7 +239,7 @@
 
     <!-- 授课记录弹窗 -->
     <el-dialog v-model="courseDialogVisible" title="授课记录" width="600px">
-      <el-table :data="courseRecords" stripe size="small">
+      <el-table :data="courseRecords" stripe size="small" empty-text="暂无数据">
         <el-table-column prop="courseName" label="课程名称" min-width="180" />
         <el-table-column prop="studentCount" label="学员数" width="80" />
         <el-table-column prop="startDate" label="开课日期" width="120" />
@@ -317,20 +326,7 @@ function resetSearch() {
   pageNum.value = 1
 }
 
-// ==================== Mock 数据 ====================
-
-const teacherList = ref([
-  { id: 1, name: '张老师', subject: '信息学', title: '教授', phone: '13800138101', email: 'zhang@example.com', courseCount: 5, studentCount: 128, status: 'enabled', avatar: '', intro: '资深信息学竞赛教练', permissions: ['课程管理', '学员管理', '赛事管理', '题库管理', '阅卷管理', '数据查看'] },
-  { id: 2, name: '李老师', subject: '数学', title: '副教授', phone: '13800138102', email: 'li@example.com', courseCount: 4, studentCount: 96, status: 'enabled', avatar: '', intro: '数学奥林匹克金牌教练', permissions: ['课程管理', '学员管理', '赛事管理', '题库管理'] },
-  { id: 3, name: '王老师', subject: '英语', title: '讲师', phone: '13800138103', email: 'wang@example.com', courseCount: 3, studentCount: 64, status: 'enabled', avatar: '', intro: '雅思托福高分导师', permissions: ['课程管理', '学员管理', '数据查看'] },
-  { id: 4, name: '赵老师', subject: '物理', title: '教授', phone: '13800138104', email: 'zhao@example.com', courseCount: 6, studentCount: 152, status: 'enabled', avatar: '', intro: '物理竞赛国家级评委', permissions: ['课程管理', '学员管理', '赛事管理', '题库管理', '阅卷管理', '数据查看'] },
-  { id: 5, name: '陈老师', subject: '化学', title: '讲师', phone: '13800138105', email: 'chen@example.com', courseCount: 2, studentCount: 48, status: 'disabled', avatar: '', intro: '化学实验教学专家', permissions: ['课程管理', '数据查看'] },
-  { id: 6, name: '刘老师', subject: '语文', title: '副教授', phone: '13800138106', email: 'liu@example.com', courseCount: 4, studentCount: 112, status: 'enabled', avatar: '', intro: '古典文学研究学者', permissions: ['课程管理', '学员管理', '赛事管理', '题库管理'] },
-  { id: 7, name: '孙老师', subject: '生物', title: '讲师', phone: '13800138107', email: 'sun@example.com', courseCount: 3, studentCount: 72, status: 'enabled', avatar: '', intro: '生物科学博士', permissions: ['课程管理', '学员管理', '数据查看'] },
-  { id: 8, name: '周老师', subject: '信息学', title: '讲师', phone: '13800138108', email: 'zhou@example.com', courseCount: 2, studentCount: 56, status: 'enabled', avatar: '', intro: 'ACM-ICPC 区域赛银牌', permissions: ['课程管理', '题库管理', '阅卷管理'] },
-  { id: 9, name: '吴老师', subject: '数学', title: '教授', phone: '13800138109', email: 'wu@example.com', courseCount: 7, studentCount: 180, status: 'enabled', avatar: '', intro: '国家数学奥林匹克主教练', permissions: ['课程管理', '学员管理', '赛事管理', '题库管理', '阅卷管理', '数据查看'] },
-  { id: 10, name: '郑老师', subject: '英语', title: '助教', phone: '13800138110', email: 'zheng@example.com', courseCount: 1, studentCount: 32, status: 'disabled', avatar: '', intro: '英语教育硕士', permissions: ['数据查看'] },
-])
+const teacherList = ref<any[]>([])
 
 // ==================== 搜索过滤与分页 ====================
 
@@ -365,8 +361,9 @@ function handleBatchDelete() {
       const ids = selectedRows.value.map(r => r.id)
       try {
         await teacherApi.batchRemove(ids)
-      } catch (e) {
-        console.warn('batch delete fallback', e)
+      } catch {
+        ElMessage.error('操作失败，请检查网络或稍后重试')
+        return
       }
       teacherList.value = teacherList.value.filter(t => !ids.includes(t.id))
       ElMessage.success('删除成功')
@@ -381,15 +378,17 @@ const pagedTeacherList = computed(() => {
   return filteredTeacherList.value.slice(start, start + pageSize.value)
 })
 
-/** 获取教师列表，调用 bridge 列表接口，失败时回退到本地 mock 数据 */
-async function fetchTeacherList() {
+/** 获取教师列表（仅来自后端；失败清空并提示，不回填本地数据） */
+async function fetchTeacherList(): Promise<boolean> {
   loading.value = true
   try {
     const res = await teacherApi.list({ pageNum: 1, pageSize: 9999 })
-    const list = res?.data?.list || res?.data?.records || []
-    if (list.length) teacherList.value = list
-  } catch (e) {
-    console.warn('load failed, fallback to mock', e)
+    teacherList.value = res?.data?.list || res?.data?.records || []
+    return true
+  } catch {
+    teacherList.value = []
+    ElMessage.error('数据加载失败，请检查网络或稍后重试')
+    return false
   } finally {
     loading.value = false
   }
@@ -460,16 +459,8 @@ async function submitForm() {
         opLog.logCreate('新增教师「' + form.name + '」')
       }
       formDialogVisible.value = false
-    } catch (e) {
-      console.warn('save teacher failed, fallback to local', e)
-      if (isEdit.value && form.id != null) {
-        const idx = teacherList.value.findIndex(t => t.id === form.id)
-        if (idx !== -1) teacherList.value[idx] = { ...teacherList.value[idx], ...form } as any
-      } else {
-        teacherList.value.unshift({ ...form, id: Date.now(), courseCount: 0, studentCount: 0, status: form.status || 'enabled' } as any)
-      }
-      ElMessage.warning('后端未连接，已本地保存（未落库）')
-      formDialogVisible.value = false
+    } catch {
+      ElMessage.error('操作失败，请检查网络或稍后重试')
     } finally {
       submitting.value = false
     }
@@ -511,19 +502,8 @@ function handleAssignPermission(row: any) {
   permDialogVisible.value = true
 }
 
-async function submitPermission() {
-  permSubmitting.value = true
-  try {
-    await new Promise(resolve => setTimeout(resolve, 500))
-    const idx = teacherList.value.findIndex(t => t.id === permTargetTeacher.value.id)
-    if (idx !== -1) {
-      teacherList.value[idx].permissions = [...permForm.permissions]
-    }
-    permDialogVisible.value = false
-    ElMessage.success(`已更新「${permTargetTeacher.value.name}」的权限`)
-  } finally {
-    permSubmitting.value = false
-  }
+function submitPermission() {
+  ElMessage.warning('该能力暂未接入后端服务，操作未生效')
 }
 
 // ==================== 查看授课记录 ====================
@@ -531,11 +511,7 @@ async function submitPermission() {
 const courseDialogVisible = ref(false)
 const courseRecords = ref<any[]>([])
 function handleViewCourses(_row: any) {
-  courseRecords.value = [
-    { courseName: 'Python 基础入门', studentCount: 45, startDate: '2024-03-01', status: '进行中' },
-    { courseName: 'C++ 算法竞赛', studentCount: 38, startDate: '2024-02-15', status: '进行中' },
-    { courseName: 'GoC 图形编程', studentCount: 28, startDate: '2023-09-01', status: '已结课' },
-  ]
+  courseRecords.value = []
   courseDialogVisible.value = true
 }
 
@@ -549,9 +525,8 @@ async function handleResetPassword(row: any) {
     await teacherApi.update(row.id, { password: '123456' })
     ElMessage.success('密码已重置为 123456')
     opLog.logUpdate('重置教师「' + row.name + '」的密码')
-  } catch (e) {
-    console.warn('reset password fallback', e)
-    ElMessage.warning('后端未连接，重置未落库')
+  } catch {
+    ElMessage.error('操作失败，请检查网络或稍后重试')
   }
 }
 
@@ -563,13 +538,14 @@ async function handleToggleStatus(row: any) {
   try {
     await ElMessageBox.confirm(`确定${label}教师 "${row.name}" 吗？`, '提示', { type: 'warning' })
   } catch { return }
-  row.status = next
-  ElMessage.success(`${label}成功`)
   try {
     await teacherApi.update(row.id, { status: next })
-  } catch (e) {
-    console.warn('toggle status fallback', e)
+  } catch {
+    ElMessage.error('操作失败，请检查网络或稍后重试')
+    return
   }
+  row.status = next
+  ElMessage.success(`${label}成功`)
 }
 
 // ==================== 头像上传占位 ====================

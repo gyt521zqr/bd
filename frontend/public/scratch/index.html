@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scratch Editor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; }
+        #scratch-app { width: 100%; height: 100%; }
+        #loading-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            display: flex; align-items: center; justify-content: center;
+            background: #4C97FF; z-index: 9999; transition: opacity 0.3s;
+        }
+        #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+        #loading-overlay .loading-content { text-align: center; color: white; }
+        #loading-overlay .loading-spinner {
+            width: 48px; height: 48px; border: 4px solid rgba(255,255,255,0.3);
+            border-top-color: white; border-radius: 50%;
+            animation: spin 0.8s linear infinite; margin: 0 auto 16px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #loading-overlay p { font-size: 16px; font-family: sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="scratch-app"></div>
+    <div id="loading-overlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <p>Scratch 编辑器加载中...</p>
+        </div>
+    </div>
+
+    <!--
+        Environment detection: distinguish development (local proxy) from production (Scratch CDN).
+
+        Only localhost and common dev ports are treated as development.
+        Preview/proxy environments (e.g. agent-sandbox) are treated as production
+        so that the browser loads real Scratch assets directly from the CDN.
+
+        Note: A synchronous XHR probe was previously used here but caused two problems:
+        1. It blocked the main thread, causing the browser to abort in-flight image
+           requests (net::ERR_ABORTED).
+        2. It incorrectly identified preview environments as "dev" because the preview
+           proxy forwards requests to the dev server, making the probe succeed.
+    -->
+    <script>
+    var isDev = (function () {
+        var loc = window.location;
+        // Local development
+        if (loc.hostname === 'localhost' || loc.hostname === '127.0.0.1' || loc.hostname === '0.0.0.0') return true;
+        if (loc.port === '5173' || loc.port === '3000' || loc.port === '8080') return true;
+        // Sandbox / preview environments where Scratch CDN is not directly accessible.
+        // These hostnames are used by the Trae agent sandbox and preview proxy.
+        if (loc.hostname.indexOf('remote-agent') !== -1) return true;
+        if (loc.hostname.indexOf('agent-sandbox') !== -1) return true;
+        if (loc.hostname.indexOf('svc.cluster.local') !== -1) return true;
+        return false;
+    })();
+    </script>
+
+    <!--
+        Asset URL rewriter (development only): intercept requests to Scratch CDN and route
+        through local proxy. In production, this is skipped — the official CDN is used directly.
+    -->
+    <script>
+    (function () {
+        if (!isDev) return;
+        var CDN_HOSTS = [
+            'https://cdn.assets.scratch.mit.edu',
+            'https://assets.scratch.mit.edu',
+            'https://projects.scratch.mit.edu',
+            'http://cdn.assets.scratch.mit.edu',
+            'http://assets.scratch.mit.edu',
+            'http://projects.scratch.mit.edu'
+        ];
+
+        function rewriteUrl(url) {
+            if (typeof url !== 'string' || !url) return url;
+            for (var i = 0; i < CDN_HOSTS.length; i++) {
+                if (url.indexOf(CDN_HOSTS[i]) === 0) {
+                    return url.substring(CDN_HOSTS[i].length);
+                }
+            }
+            return url;
+        }
+
+        // Patch fetch to rewrite CDN URLs
+        var origFetch = window.fetch;
+        window.fetch = function (input, init) {
+            if (typeof input === 'string') {
+                input = rewriteUrl(input);
+            } else if (input && input.url) {
+                input = new Request(rewriteUrl(input.url), input);
+            }
+            return origFetch.call(this, input, init);
+        };
+
+        // Patch XMLHttpRequest to rewrite CDN URLs
+        var origOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function (method, url) {
+            arguments[1] = rewriteUrl(url);
+            return origOpen.apply(this, arguments);
+        };
+
+        // Patch Image src property to rewrite CDN URLs at assignment time.
+        // React sets img.src directly, which triggers the network request before
+        // MutationObserver can react. Interception at the property level is needed.
+        var imgProto = window.Image.prototype;
+        var origSrcDesc = Object.getOwnPropertyDescriptor(imgProto, 'src');
+        if (origSrcDesc && origSrcDesc.set) {
+            Object.defineProperty(imgProto, 'src', {
+                get: function () { return origSrcDesc.get.call(this); },
+                set: function (v) { origSrcDesc.set.call(this, rewriteUrl(v)); },
+                configurable: true,
+                enumerable: true
+            });
+        }
+
+        // Patch HTMLImageElement.setAttribute to rewrite CDN URLs
+        var origSetAttr = HTMLImageElement.prototype.setAttribute;
+        HTMLImageElement.prototype.setAttribute = function (name, value) {
+            if (name === 'src' && typeof value === 'string') {
+                value = rewriteUrl(value);
+            }
+            return origSetAttr.call(this, name, value);
+        };
+
+        // Use MutationObserver to rewrite img src attributes for library thumbnails
+        var observer = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+                mutation.addedNodes.forEach(function (node) {
+                    if (node.nodeType !== 1) return;
+                    if (node.tagName === 'IMG' && node.src) {
+                        var newSrc = rewriteUrl(node.src);
+                        if (newSrc !== node.src) node.src = newSrc;
+                    }
+                    if (node.querySelectorAll) {
+                        var imgs = node.querySelectorAll('img');
+                        for (var i = 0; i < imgs.length; i++) {
+                            if (imgs[i].src) {
+                                var ns = rewriteUrl(imgs[i].src);
+                                if (ns !== imgs[i].src) imgs[i].src = ns;
+                            }
+                        }
+                    }
+                });
+            });
+        });
+        observer.observe(document.documentElement || document, { childList: true, subtree: true });
+
+        // Patch Worker constructor to inject fetch rewriting into Web Workers.
+        // The Scratch GUI uses a fetch-worker (Web Worker) to load assets, and
+        // window.fetch patching does NOT affect the worker's internal fetch.
+        // We intercept Worker creation and inject a script that patches self.fetch
+        // before importing the original worker script via importScripts.
+        var OrigWorker = window.Worker;
+        if (OrigWorker) {
+            window.Worker = function (workerUrl, workerOptions) {
+                // Resolve to absolute URL for importScripts
+                var absUrl = new URL(workerUrl, location.href).href;
+
+                // Only intercept same-origin workers (avoid CORS issues with external workers)
+                var workerOrigin;
+                try { workerOrigin = new URL(absUrl).origin; } catch (e) { workerOrigin = ''; }
+                if (workerOrigin !== location.origin) {
+                    return new OrigWorker(workerUrl, workerOptions);
+                }
+
+                // Build the patch script: patch self.fetch, then import the original worker
+                var patchScript =
+                    'var CDN_HOSTS = ' + JSON.stringify(CDN_HOSTS) + ';' +
+                    'function rewriteUrl(url) {' +
+                    '  if (typeof url !== "string" || !url) return url;' +
+                    '  for (var i = 0; i < CDN_HOSTS.length; i++) {' +
+                    '    if (url.indexOf(CDN_HOSTS[i]) === 0) return url.substring(CDN_HOSTS[i].length);' +
+                    '  }' +
+                    '  return url;' +
+                    '};' +
+                    'var origFetch = self.fetch;' +
+                    'self.fetch = function(input, init) {' +
+                    '  if (typeof input === "string") { input = rewriteUrl(input); }' +
+                    '  else if (input && input.url) { input = new Request(rewriteUrl(input.url), input); }' +
+                    '  return origFetch.call(this, input, init);' +
+                    '};' +
+                    'importScripts(' + JSON.stringify(absUrl) + ');';
+
+                var blob = new Blob([patchScript], { type: 'application/javascript' });
+                var blobUrl = URL.createObjectURL(blob);
+                var w = new OrigWorker(blobUrl, workerOptions);
+
+                // Clean up blob URL after worker loads
+                w.addEventListener('error', function () { URL.revokeObjectURL(blobUrl); });
+                setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 30000);
+
+                return w;
+            };
+            window.Worker.prototype = OrigWorker.prototype;
+        }
+    })();
+    </script>
+
+    <!--
+        WebGL fallback: only for environments where WebGL is broken/unavailable.
+        In real browsers with working WebGL, this is a complete no-op.
+        This does NOT affect production functionality.
+    -->
+    <script>
+    (function () {
+        // Check if WebGL truly works (not just if context exists)
+        var tc = document.createElement('canvas');
+        var gl = tc.getContext('webgl') || tc.getContext('experimental-webgl');
+        if (gl && gl.getParameter(gl.VERSION) && typeof gl.getParameter(gl.VERSION) === 'string') return;
+
+        // WebGL is broken/unavailable — provide minimal mock so scratch-render doesn't crash
+        var C = {
+            DEPTH_BUFFER_BIT:256,STENCIL_BUFFER_BIT:1024,COLOR_BUFFER_BIT:16384,
+            TRIANGLES:4,POINTS:0,LINES:1,LINE_STRIP:3,
+            SRC_ALPHA:770,ONE_MINUS_SRC_ALPHA:771,BLEND:3042,
+            ARRAY_BUFFER:34962,ELEMENT_ARRAY_BUFFER:34963,
+            STATIC_DRAW:35044,STREAM_DRAW:35040,DYNAMIC_DRAW:35048,
+            FRAGMENT_SHADER:35632,VERTEX_SHADER:35633,
+            MAX_TEXTURE_SIZE:3379,MAX_VERTEX_ATTRIBS:34921,MAX_TEXTURE_IMAGE_UNITS:34930,
+            LINK_STATUS:35714,COMPILE_STATUS:35713,NO_ERROR:0,
+            TEXTURE_MAG_FILTER:10240,TEXTURE_MIN_FILTER:10241,NEAREST:9728,LINEAR:9729,
+            TEXTURE_WRAP_S:10242,TEXTURE_WRAP_T:10243,CLAMP_TO_EDGE:33071,REPEAT:10497,
+            UNPACK_FLIP_Y_WEBGL:37440,UNPACK_PREMULTIPLY_ALPHA_WEBGL:37441,
+            RGBA:6408,RGB:6407,ALPHA:6406,UNSIGNED_BYTE:5121,FLOAT:5126,
+            TEXTURE_2D:3553,TEXTURE0:33984,ACTIVE_TEXTURE:34016,
+            VENDOR:7936,RENDERER:7937,VERSION:7938,SHADING_LANGUAGE_VERSION:35724,
+            FRAMEBUFFER:36160,RENDERBUFFER:36161,COLOR_ATTACHMENT0:36064,
+            DEPTH_ATTACHMENT:36096,STENCIL_ATTACHMENT:36128,DEPTH_STENCIL_ATTACHMENT:33306,
+            DEPTH_STENCIL:34041,DEPTH_COMPONENT16:33189,STENCIL_INDEX8:36168,
+            UNSIGNED_INT_24_8:33640,
+            FRAMEBUFFER_COMPLETE:36053,FRAMEBUFFER_BINDING:36006,RENDERBUFFER_BINDING:36007,
+            RENDERBUFFER_WIDTH:36162,RENDERBUFFER_HEIGHT:36163,
+            MAX_RENDERBUFFER_SIZE:34024,MAX_CUBE_MAP_TEXTURE_SIZE:34076,
+            DEPTH_TEST:2929,CULL_FACE:2884,SCISSOR_TEST:3089,STENCIL_TEST:2960,
+            TEXTURE_CUBE_MAP:34067,MAX_VIEWPORT_DIMS:3386,
+            FLOAT_VEC2:35664,FLOAT_VEC3:35665,FLOAT_VEC4:35666,
+            FLOAT_MAT2:35674,FLOAT_MAT3:35675,FLOAT_MAT4:35676,
+            SAMPLER_2D:35678,MAX_COMBINED_TEXTURE_IMAGE_UNITS:35661,
+            MAX_VERTEX_TEXTURE_IMAGE_UNITS:35660,MAX_VARYING_VECTORS:36348,
+            MAX_VERTEX_UNIFORM_VECTORS:36347,MAX_FRAGMENT_UNIFORM_VECTORS:36349,
+            BUFFER_SIZE:34660,BUFFER_USAGE:34661,
+            ACTIVE_ATTRIBUTES:35721,ACTIVE_UNIFORMS:35718,ATTACHED_SHADERS:35717,
+            ACTIVE_ATTRIBUTE_MAX_LENGTH:35722,ACTIVE_UNIFORM_MAX_LENGTH:35719,
+            DELETE_STATUS:35712,VALIDATE_STATUS:35715,
+            TRANSFORM_FEEDBACK_VARYINGS:35971,TRANSFORM_FEEDBACK_BUFFER_MODE:35967,
+            GENERATE_MIPMAP_HINT:33170,NICEST:4354,FASTEST:4353,DONT_CARE:4352,
+            CURRENT_PROGRAM:35725,CURRENT_BUFFER:34942
+        };
+        var P = {}; P[C.VERSION]='WebGL 1.0'; P[C.VENDOR]='Mock'; P[C.RENDERER]='Mock';
+        P[C.MAX_TEXTURE_SIZE]=4096; P[C.MAX_VERTEX_ATTRIBS]=16; P[C.MAX_TEXTURE_IMAGE_UNITS]=32;
+        P[C.MAX_RENDERBUFFER_SIZE]=4096; P[C.MAX_COMBINED_TEXTURE_IMAGE_UNITS]=32;
+        P[C.MAX_VERTEX_TEXTURE_IMAGE_UNITS]=32; P[C.MAX_VARYING_VECTORS]=10;
+        P[C.MAX_VERTEX_UNIFORM_VECTORS]=256; P[C.MAX_FRAGMENT_UNIFORM_VECTORS]=256;
+        var n=1;
+        // twgl checks instanceof WebGLRenderbuffer/WebGLTexture, so mock objects must be real instances
+        function mkObj(proto){try{var o=Object.create(proto);o._id=n++;return o}catch(e){return{_id:n++}}}
+        function mkRB(){return mkObj(typeof WebGLRenderbuffer!=='undefined'?WebGLRenderbuffer.prototype:{})}
+        function mkTex(){return mkObj(typeof WebGLTexture!=='undefined'?WebGLTexture.prototype:{})}
+        function mkBuf(){return mkObj(typeof WebGLBuffer!=='undefined'?WebGLBuffer.prototype:{})}
+        function mkFB(){return mkObj(typeof WebGLFramebuffer!=='undefined'?WebGLFramebuffer.prototype:{})}
+        function mkProg(){return mkObj(typeof WebGLProgram!=='undefined'?WebGLProgram.prototype:{})}
+        function mkSh(){return mkObj(typeof WebGLShader!=='undefined'?WebGLShader.prototype:{})}
+        var bufSizes={};
+        var curBuf=null;
+        var m = new Proxy(Object.assign({
+            canvas:tc,drawingBufferWidth:480,drawingBufferHeight:360,
+            createBuffer:mkBuf,createFramebuffer:mkFB,createRenderbuffer:mkRB,
+            createTexture:mkTex,createProgram:mkProg,createShader:mkSh,createVertexArray:function(){return{}},
+            bindBuffer:function(t,b){if(t===C.ARRAY_BUFFER)curBuf=b},
+            bufferData:function(t,data,usage){if(curBuf&&data&&data.length)bufSizes[curBuf._id]=data.byteLength||data.length*4},
+            getBufferParameter:function(t,p){if(p===C.BUFFER_SIZE&&curBuf)return bufSizes[curBuf._id]||4;return 0},
+            getParameter:function(p){return P[p]!==undefined?P[p]:null},
+            getExtension:function(n){return n==='ANGLE_instanced_arrays'?{drawElementsInstancedANGLE:function(){},drawArraysInstancedANGLE:function(){},vertexAttribDivisorANGLE:function(){}}:null},
+            getSupportedExtensions:function(){return['ANGLE_instanced_arrays','OES_texture_float','OES_standard_derivatives','EXT_texture_filter_anisotropic']},
+            getContextAttributes:function(){return{alpha:true,depth:true,stencil:true,antialias:true}},
+            isContextLost:function(){return false},
+            checkFramebufferStatus:function(){return C.FRAMEBUFFER_COMPLETE},
+            getShaderParameter:function(s,p){return p===C.COMPILE_STATUS||p===C.DELETE_STATUS},
+            getProgramParameter:function(p,n){
+                if(n===C.LINK_STATUS||n===C.VALIDATE_STATUS||n===C.DELETE_STATUS)return true;
+                if(n===C.ACTIVE_ATTRIBUTES||n===C.ACTIVE_UNIFORMS||n===C.ATTACHED_SHADERS)return 0;
+                if(n===C.ACTIVE_ATTRIBUTE_MAX_LENGTH||n===C.ACTIVE_UNIFORM_MAX_LENGTH)return 0;
+                if(n===C.TRANSFORM_FEEDBACK_VARYINGS)return 0;
+                if(n===35382)return 0; // ACTIVE_UNIFORM_BLOCKS (WebGL2)
+                return null;
+            },
+            getShaderPrecisionFormat:function(shaderType,precisionType){
+                return {rangeMin:0,rangeMax:31,precision:23};
+            },
+            getShaderInfoLog:function(){return''},getProgramInfoLog:function(){return''},
+            getAttribLocation:function(){return 0},getUniformLocation:function(){return{_id:n++}},
+            getError:function(){return C.NO_ERROR},
+            getActiveAttrib:function(){return{name:'a_position',size:1,type:C.FLOAT_VEC2}},
+            getActiveUniform:function(){return{name:'u_color',size:1,type:C.FLOAT_VEC4}},
+            // WebGL2 UBO functions - return empty/zero values to prevent forEach errors
+            getActiveUniforms:function(){return[]},
+            getActiveUniformBlockName:function(){return''},
+            getUniformBlockIndex:function(){return 0xFFFFFFFF}, // GL_INVALID_INDEX
+            getActiveUniformBlockParameter:function(){return 0},
+            getUniformIndices:function(){return[]},
+            getVertexAttrib:function(){return 0},getVertexAttribOffset:function(){return 0},
+            readPixels:function(x,y,w,h,f,t,p){if(p)for(var i=0;i<p.length;i++)p[i]=0}
+        },C),{
+            get:function(t,p){if(p in t)return t[p];if(typeof p==='string'&&/^[A-Z]/.test(p))return C[p]||0;if(typeof p==='string')return function(){}},
+            set:function(t,p,v){t[p]=v;return true}
+        });
+        var orig=HTMLCanvasElement.prototype.getContext;
+        HTMLCanvasElement.prototype.getContext=function(type){
+            if(type==='webgl'||type==='experimental-webgl'||type==='webgl2')return m;
+            return orig.apply(this,arguments);
+        };
+    })();
+    </script>
+
+    <!-- Load the Scratch GUI standalone bundle -->
+    <script src="./scratch-gui-standalone.js"></script>
+    <script>
+        (async function () {
+            var ScratchGUI = window.GUI;
+
+            // Create the editor state with Simplified Chinese locale
+            var state = new ScratchGUI.EditorState({ locale: 'zh-cn' });
+
+            // Set app element for accessibility
+            var appElement = document.getElementById('scratch-app');
+            if (ScratchGUI.setAppElement) {
+                ScratchGUI.setAppElement(appElement);
+            }
+
+            // Create the standalone root and render.
+            // In development: assetHost '' routes assets through the local Vite proxy.
+            // In production: omit assetHost/projectHost to use the default Scratch CDN.
+            var root = ScratchGUI.createStandaloneRoot(state, appElement);
+            var renderOptions = {
+                backpackHost: null,
+                isTelemetryEnabled: false
+            };
+            if (isDev) {
+                renderOptions.assetHost = '';
+                renderOptions.projectHost = '';
+            }
+            root.render(renderOptions);
+
+            // Hide loading overlay once React has rendered
+            requestAnimationFrame(function () {
+                var overlay = document.getElementById('loading-overlay');
+                if (overlay) {
+                    overlay.classList.add('hidden');
+                    setTimeout(function () { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }, 500);
+                }
+            });
+
+            // Access the VM from the Redux store
+            var vm = null;
+            var store = state.store;
+
+            function getVM() {
+                try {
+                    var vmState = store.getState();
+                    if (vmState && vmState.scratchGui && vmState.scratchGui.vm) {
+                        return vmState.scratchGui.vm;
+                    }
+                } catch (e) {}
+                return null;
+            }
+
+            // Debounce timer for project change notifications
+            var projectChangeTimer = null;
+
+            // Send project JSON to parent window (debounced)
+            function sendProjectJson() {
+                if (!vm) return;
+                try {
+                    var json = vm.toJSON();
+                    window.parent.postMessage({
+                        type: 'PROJECT_JSON_DATA',
+                        data: json
+                    }, '*');
+                } catch (e) {
+                    window.parent.postMessage({
+                        type: 'PROJECT_JSON_ERROR',
+                        error: e.message || String(e)
+                    }, '*');
+                }
+            }
+
+            function scheduleProjectChange() {
+                if (projectChangeTimer) clearTimeout(projectChangeTimer);
+                projectChangeTimer = setTimeout(function () {
+                    sendProjectJson();
+                }, 800);
+            }
+
+            // Default Scratch project JSON (cat sprite + white backdrop)
+            var DEFAULT_PROJECT_JSON = {
+                targets: [
+                    {
+                        isStage: true,
+                        name: 'Stage',
+                        variables: {},
+                        lists: {},
+                        broadcasts: {},
+                        blocks: {},
+                        comments: {},
+                        currentCostume: 0,
+                        costumes: [{
+                            name: 'backdrop1',
+                            dataFormat: 'svg',
+                            assetId: 'cd21514d0531fdffb222c8486cd028f2',
+                            md5ext: 'cd21514d0531fdffb222c8486cd028f2.svg'
+                        }],
+                        sounds: [],
+                        layerOrder: 0,
+                        tempo: 60,
+                        videoTransparency: 50,
+                        videoState: 'on'
+                    },
+                    {
+                        isStage: false,
+                        name: 'Sprite1',
+                        variables: {},
+                        lists: {},
+                        broadcasts: {},
+                        blocks: {},
+                        comments: {},
+                        currentCostume: 0,
+                        costumes: [
+                            {
+                                name: 'costume1',
+                                dataFormat: 'svg',
+                                assetId: '09dc888b0b7df19f70d81588ae72820e',
+                                md5ext: '09dc888b0b7df19f70d81588ae72820e.svg'
+                            },
+                            {
+                                name: 'costume2',
+                                dataFormat: 'svg',
+                                assetId: '3696356aef2d2b96f42668d2b9d14d27',
+                                md5ext: '3696356aef2d2b96f42668d2b9d14d27.svg'
+                            }
+                        ],
+                        sounds: [{
+                            name: 'Meow',
+                            dataFormat: 'wav',
+                            assetId: '83c36d806dc92327b9e7049a565c6bff',
+                            md5ext: '83c36d806dc92327b9e7049a565c6bff.wav'
+                        }],
+                        layerOrder: 1,
+                        x: 0,
+                        y: 0,
+                        size: 100,
+                        direction: 90,
+                        draggable: true,
+                        rotationStyle: 'all around'
+                    }
+                ],
+                monitors: [],
+                extensions: [],
+                meta: { semver: '3.0.0', vm: '0.2.0' }
+            };
+
+            // Poll for VM availability, then attach event listeners
+            var vmCheckCount = 0;
+
+            var vmCheckInterval = setInterval(function () {
+                vm = getVM();
+                vmCheckCount++;
+
+                if (vm) {
+                    clearInterval(vmCheckInterval);
+
+                    // Listen for project changes to auto-send JSON to parent
+                    vm.on('PROJECT_CHANGED', scheduleProjectChange);
+
+                    // Also listen for workspace updates
+                    vm.on('RUNTIME_STARTED', function () {
+                        window.parent.postMessage({ type: 'RUNTIME_STARTED' }, '*');
+                    });
+                    vm.on('RUNTIME_STOPPED', function () {
+                        window.parent.postMessage({ type: 'RUNTIME_STOPPED' }, '*');
+                    });
+
+                    // Notify parent that the editor is ready immediately
+                    window.parent.postMessage({ type: 'SCRATCH_READY' }, '*');
+
+                    // Try to load the default project (cat sprite + white backdrop)
+                    var projectLoadTimeout = setTimeout(function () {
+                        console.warn('Default project load timed out, continuing with empty project');
+                        setTimeout(sendProjectJson, 300);
+                    }, 5000);
+
+                    vm.loadProject(DEFAULT_PROJECT_JSON).then(function () {
+                        clearTimeout(projectLoadTimeout);
+                        setTimeout(sendProjectJson, 300);
+                    }).catch(function (e) {
+                        clearTimeout(projectLoadTimeout);
+                        console.error('Failed to load default project:', e);
+                        setTimeout(sendProjectJson, 300);
+                    });
+                } else if (vmCheckCount > 60) {
+                    // Timeout after 30 seconds
+                    clearInterval(vmCheckInterval);
+                    window.parent.postMessage({
+                        type: 'SCRATCH_ERROR',
+                        error: 'VM initialization timeout'
+                    }, '*');
+                }
+            }, 500);
+
+            // Listen for messages from parent window
+            window.addEventListener('message', async function (event) {
+                if (!event.data || !event.data.type) return;
+
+                switch (event.data.type) {
+                    case 'GET_PROJECT_JSON': {
+                        if (!vm) vm = getVM();
+                        if (!vm) {
+                            window.parent.postMessage({
+                                type: 'PROJECT_JSON_ERROR',
+                                error: 'VM not ready'
+                            }, '*');
+                            return;
+                        }
+                        sendProjectJson();
+                        break;
+                    }
+
+                    case 'GET_PROJECT_SB3': {
+                        try {
+                            if (!vm) vm = getVM();
+                            if (!vm) {
+                                window.parent.postMessage({
+                                    type: 'PROJECT_SB3_ERROR',
+                                    error: 'VM not ready'
+                                }, '*');
+                                return;
+                            }
+                            var buffer = await vm.saveProjectSb3('arraybuffer');
+                            var bytes = new Uint8Array(buffer);
+                            var binary = '';
+                            var chunkSize = 8192;
+                            for (var i = 0; i < bytes.length; i += chunkSize) {
+                                var chunk = bytes.subarray(i, i + chunkSize);
+                                binary += String.fromCharCode.apply(null, chunk);
+                            }
+                            var base64 = btoa(binary);
+                            window.parent.postMessage({
+                                type: 'PROJECT_SB3_DATA',
+                                data: base64
+                            }, '*');
+                        } catch (e) {
+                            window.parent.postMessage({
+                                type: 'PROJECT_SB3_ERROR',
+                                error: e.message || String(e)
+                            }, '*');
+                        }
+                        break;
+                    }
+
+                    case 'GET_STAGE_THUMBNAIL': {
+                        try {
+                            if (!vm) vm = getVM();
+                            if (!vm || !vm.renderer || !vm.renderer.canvas) {
+                                window.parent.postMessage({
+                                    type: 'STAGE_THUMBNAIL_ERROR',
+                                    error: 'renderer not ready'
+                                }, '*');
+                                return;
+                            }
+                            var stageCanvas = vm.renderer.canvas;
+                            // 缩放成缩略图（最大 240x180，保持比例）
+                            var maxW = 240, maxH = 180;
+                            var scale = Math.min(maxW / stageCanvas.width, maxH / stageCanvas.height, 1);
+                            var tw = Math.max(1, Math.round(stageCanvas.width * scale));
+                            var th = Math.max(1, Math.round(stageCanvas.height * scale));
+                            var tcanvas = document.createElement('canvas');
+                            tcanvas.width = tw;
+                            tcanvas.height = th;
+                            var tctx = tcanvas.getContext('2d');
+                            tctx.drawImage(stageCanvas, 0, 0, tw, th);
+                            var dataUrl = tcanvas.toDataURL('image/png');
+                            window.parent.postMessage({
+                                type: 'STAGE_THUMBNAIL_DATA',
+                                data: dataUrl
+                            }, '*');
+                        } catch (e) {
+                            window.parent.postMessage({
+                                type: 'STAGE_THUMBNAIL_ERROR',
+                                error: e.message || String(e)
+                            }, '*');
+                        }
+                        break;
+                    }
+
+                    case 'LOAD_PROJECT_JSON': {
+                        try {
+                            if (!vm) vm = getVM();
+                            if (!vm) {
+                                window.parent.postMessage({
+                                    type: 'LOAD_ERROR',
+                                    error: 'VM not ready'
+                                }, '*');
+                                return;
+                            }
+                            var projectData = typeof event.data.data === 'string'
+                                ? JSON.parse(event.data.data)
+                                : event.data.data;
+                            await vm.loadProject(projectData);
+                            window.parent.postMessage({ type: 'LOAD_SUCCESS' }, '*');
+                            setTimeout(sendProjectJson, 200);
+                        } catch (e) {
+                            window.parent.postMessage({
+                                type: 'LOAD_ERROR',
+                                error: e.message || String(e)
+                            }, '*');
+                        }
+                        break;
+                    }
+
+                    case 'RUN_PROJECT': {
+                        try {
+                            if (!vm) vm = getVM();
+                            if (vm) vm.greenFlag();
+                        } catch (e) {}
+                        break;
+                    }
+
+                    case 'STOP_PROJECT': {
+                        try {
+                            if (!vm) vm = getVM();
+                            if (vm) vm.stopAll();
+                        } catch (e) {}
+                        break;
+                    }
+                }
+            });
+        })();
+    </script>
+
+    <!--
+        中文菜单覆盖脚本
+        原因：scratch-gui-standalone.js 未打包 zh-cn 翻译包，
+        即便 EditorState 设置 locale:'zh-cn' 也会回退英文。
+        此处通过 MutationObserver 在菜单渲染后持续将英文菜单文本替换为中文，
+        作为快速可用的中文化兜底。完整方案是用包含 zh-cn 的 scratch-gui 重新构建。
+    -->
+    <script>
+    (function () {
+        var MENU_MAP = {
+            'File': '文件', 'Edit': '编辑', 'Tutorials': '教程', 'Settings': '设置',
+            'Language': '语言', 'New': '新建', 'Undo': '撤销', 'Redo': '重做',
+            'Save to your computer': '保存到电脑', 'Load from your computer': '从电脑加载',
+            'Save to account': '保存到账户', 'Share': '分享', 'My Stuff': '我的作品',
+            'See community': '查看社区', 'Account': '账户', 'Sign in': '登录',
+            'Sign out': '退出登录', 'Delete': '删除', 'Backpack': '背包',
+            'Duplicate': '复制', 'Help': '帮助', 'About': '关于', 'Forums': '论坛',
+            'Privacy Policy': '隐私政策', 'Terms of Use': '使用条款',
+            'Cookie Policy': 'Cookie 政策', 'Restore': '恢复', 'Change Username': '更改用户名'
+        };
+        function replaceText(root) {
+            if (!root) return;
+            var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+            var node;
+            while ((node = walker.nextNode())) {
+                var text = node.nodeValue;
+                if (text && MENU_MAP[text.trim()]) {
+                    node.nodeValue = MENU_MAP[text.trim()];
+                }
+            }
+        }
+        function observeMenu() {
+            var bar = document.querySelector('[class*="menu-bar"]');
+            if (!bar) { setTimeout(observeMenu, 1000); return; }
+            var mo = new MutationObserver(function () { replaceText(bar); });
+            mo.observe(bar, { childList: true, subtree: true, characterData: true });
+            replaceText(bar);
+        }
+        window.addEventListener('message', function (e) {
+            if (e.data && e.data.type === 'SCRATCH_READY') { setTimeout(observeMenu, 1500); }
+        });
+        var tries = 0;
+        var iv = setInterval(function () {
+            tries++;
+            observeMenu();
+            if (tries > 30) clearInterval(iv);
+        }, 2000);
+    })();
+    </script>
+</body>
+</html>

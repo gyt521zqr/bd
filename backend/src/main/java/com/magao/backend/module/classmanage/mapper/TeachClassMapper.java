@@ -1,0 +1,9 @@
+package com.magao.backend.module.classmanage.mapper;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.magao.backend.module.classmanage.entity.TeachClass;
+import org.apache.ibatis.annotations.Mapper;
+
+@Mapper
+public interface TeachClassMapper extends BaseMapper<TeachClass> {
+}

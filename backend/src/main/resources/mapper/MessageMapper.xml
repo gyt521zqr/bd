@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.magao.backend.module.message.mapper.MessageMapper">
+    <sql id="baseColumns">
+        id, receiver_id, sender_id, title, content, message_type, is_read,
+        read_time, create_time, update_time, deleted
+    </sql>
+</mapper>

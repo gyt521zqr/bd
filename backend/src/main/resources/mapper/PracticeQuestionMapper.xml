@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.magao.backend.module.practice.mapper.PracticeQuestionMapper">
+    <sql id="baseColumns">
+        id, title, description, question_type, language, difficulty, time_limit,
+        memory_limit, template_code, answer, hint, pass_rate, submit_count,
+        pass_count, create_time, update_time, deleted
+    </sql>
+</mapper>

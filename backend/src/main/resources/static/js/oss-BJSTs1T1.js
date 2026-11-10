@@ -1,0 +1,1 @@
+import{e as i}from"./index-CN52DKLq.js";function r(d,t,e){const o=new FormData;return o.append("file",d),o.append("type",t.type),t.id!==void 0&&o.append("id",String(t.id)),i.post("/oss/upload",o,{headers:{"Content-Type":"multipart/form-data"},onUploadProgress(a){a.total&&e&&e(Math.round(a.loaded/a.total*100))}})}export{r as u};
