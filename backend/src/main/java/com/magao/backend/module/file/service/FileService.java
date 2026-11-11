@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.magao.backend.module.file.entity.FileRecord;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
+
 /**
  * 文件服务接口
  *
@@ -20,4 +22,12 @@ public interface FileService extends IService<FileRecord> {
 
     /** 删除文件 */
     void deleteFile(Long fileId);
+
+    /**
+     * 获取文件输入流（统一回显/下载，本地磁盘与对象存储均适用）
+     *
+     * @param fileId 文件记录ID
+     * @return 文件输入流
+     */
+    InputStream download(Long fileId);
 }

@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -187,7 +188,7 @@ public class OssController extends BaseController {
         return Result.success(data);
     }
 
-    @Operation(summary = "公共读取文件（供上传后回显/下载，免登录）")
+    @Operation(summary = "公共读取文件（供上传后回显/下载，免登录，兼容本地与MinIO存储）")
     @GetMapping("/raw/{fileId}")
     public void raw(@PathVariable Long fileId, HttpServletResponse response) throws IOException {
         FileRecord record = fileService.getById(fileId);
@@ -195,13 +196,12 @@ public class OssController extends BaseController {
             response.sendError(HttpServletResponse.SC_NOT_FOUND);
             return;
         }
-        Path path = Paths.get(UPLOAD_DIR, record.getFilePath());
-        if (!Files.exists(path)) {
+        try (InputStream is = fileService.download(fileId)) {
+            response.setContentType(record.getFileType() != null ? record.getFileType() : "application/octet-stream");
+            is.transferTo(response.getOutputStream());
+            response.getOutputStream().flush();
+        } catch (Exception e) {
             response.sendError(HttpServletResponse.SC_NOT_FOUND);
-            return;
         }
-        response.setContentType(record.getFileType() != null ? record.getFileType() : "application/octet-stream");
-        Files.copy(path, response.getOutputStream());
-        response.getOutputStream().flush();
     }
 }

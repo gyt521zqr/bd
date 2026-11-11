@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -81,5 +82,22 @@ public class LocalFileServiceImpl extends ServiceImpl<FileRecordMapper, FileReco
         }
         removeById(fileId);
         log.info("文件删除成功(本地)：fileId={}", fileId);
+    }
+
+    @Override
+    public InputStream download(Long fileId) {
+        FileRecord record = getById(fileId);
+        if (record == null) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
+        }
+        Path path = Paths.get(UPLOAD_DIR, record.getFilePath());
+        if (!Files.exists(path)) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
+        }
+        try {
+            return Files.newInputStream(path);
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
+        }
     }
 }

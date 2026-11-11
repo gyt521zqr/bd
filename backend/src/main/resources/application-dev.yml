@@ -89,10 +89,15 @@ spring:
 
 # MinIO开发环境配置
 minio:
+  enabled: true
   endpoint: http://localhost:9000
   access-key: minioadmin
   secret-key: minioadmin
   default-bucket: magao
+
+# 本地开发：关闭 TOS（火山引擎），改用本地 MinIO 作为对象存储
+tos:
+  enabled: false
 
 # Judge0开发环境配置
 judge0:

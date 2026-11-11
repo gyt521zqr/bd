@@ -13,6 +13,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
+
 /**
  * 文件服务实现类（基于MinIO）
  *
@@ -63,5 +65,12 @@ public class MinioServiceImpl extends ServiceImpl<FileRecordMapper, FileRecord> 
         minioUtil.delete(record.getFilePath(), record.getBucket());
         removeById(fileId);
         log.info("文件删除成功：fileId={}", fileId);
+    }
+
+    @Override
+    public InputStream download(Long fileId) {
+        FileRecord record = getById(fileId);
+        if (record == null) { throw new BusinessException(ErrorCode.FILE_NOT_FOUND); }
+        return minioUtil.download(record.getFilePath(), record.getBucket());
     }
 }
