@@ -208,7 +208,11 @@ public class GrowthServiceImpl implements GrowthService {
             v.setPoints(up.getTotalPoint() == null ? 0 : up.getTotalPoint());
             UserLevel ul = userLevelMapper.selectOne(new LambdaQueryWrapper<UserLevel>().eq(UserLevel::getUserId, up.getUserId()));
             v.setLevel(ul == null ? 1 : ul.getLevel());
-            v.setSubmitCount(0);
+            // P1-03：提交次数从积分流水统计（change_type=3 考试），不再写死 0
+            Long submitCount = pointLogMapper.selectCount(new LambdaQueryWrapper<PointLog>()
+                    .eq(PointLog::getUserId, up.getUserId())
+                    .eq(PointLog::getChangeType, 3));
+            v.setSubmitCount(submitCount == null ? 0 : submitCount.intValue());
             out.add(v);
         }
         return out;
@@ -223,8 +227,17 @@ public class GrowthServiceImpl implements GrowthService {
         m.put("weekEnd", startWeek.plusDays(6).toLocalDate().toString());
         m.put("totalPoints", pointLogMapper.sumChangePointSince(userId, startWeek));
         m.put("studyDays", pointLogMapper.countStudyDaysSince(userId, startWeek));
-        m.put("completedExams", 0);
-        m.put("completedCourses", 0);
+        // P1-03：考试/课程完成数从积分流水统计，不再写死 0
+        Long exams = pointLogMapper.selectCount(new LambdaQueryWrapper<PointLog>()
+                .eq(PointLog::getUserId, userId)
+                .eq(PointLog::getChangeType, 3)
+                .ge(PointLog::getCreateTime, startWeek));
+        m.put("completedExams", exams == null ? 0 : exams.intValue());
+        Long courses = pointLogMapper.selectCount(new LambdaQueryWrapper<PointLog>()
+                .eq(PointLog::getUserId, userId)
+                .eq(PointLog::getChangeType, 2)
+                .ge(PointLog::getCreateTime, startWeek));
+        m.put("completedCourses", courses == null ? 0 : courses.intValue());
         return m;
     }
 
