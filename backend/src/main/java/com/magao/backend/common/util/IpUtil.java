@@ -39,34 +39,31 @@ public class IpUtil {
      * @return 客户端IP地址
      */
     public static String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (isInvalidIp(ip)) {
-            ip = request.getHeader("Proxy-Client-IP");
-        }
-        if (isInvalidIp(ip)) {
-            ip = request.getHeader("WL-Proxy-Client-IP");
-        }
-        if (isInvalidIp(ip)) {
-            ip = request.getHeader("HTTP_CLIENT_IP");
-        }
-        if (isInvalidIp(ip)) {
-            ip = request.getHeader("HTTP_X_FORWARDED_FOR");
-        }
-        if (isInvalidIp(ip)) {
-            ip = request.getRemoteAddr();
+        String remoteAddr = request.getRemoteAddr();
+        String normalized = normalizeIp(remoteAddr);
+
+        // P1-17：直连场景（remoteAddr 为公网 IP）绝不信任转发头，防止伪造 X-Forwarded-For 绕过限流
+        if (normalized != null && !isInternalIp(normalized)) {
+            return normalized;
         }
 
-        // 多级代理时取第一个IP
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
+        // 经内网可信代理（Nginx 等）时，才信任 X-Forwarded-For 的首个 IP
+        String xff = request.getHeader("X-Forwarded-For");
+        if (!isInvalidIp(xff)) {
+            String first = xff.split(",")[0].trim();
+            if (!isInvalidIp(first)) {
+                return first;
+            }
         }
+        return normalized;
+    }
 
-        // 处理IPv6本地地址
-        if ("0:0:0:0:0:0:0:1".equals(ip)) {
-            ip = "127.0.0.1";
-        }
-
-        return ip;
+    /** 归一化 IP：处理 IPv6 回环地址与多级逗号分隔 */
+    private static String normalizeIp(String ip) {
+        if (ip == null) return null;
+        if ("0:0:0:0:0:0:0:1".equals(ip)) return "127.0.0.1";
+        if (ip.contains(",")) return ip.split(",")[0].trim();
+        return ip.trim();
     }
 
     /**
