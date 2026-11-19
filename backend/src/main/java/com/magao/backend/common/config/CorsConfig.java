@@ -1,10 +1,14 @@
 package com.magao.backend.common.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
+
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * CORS跨域配置类
@@ -21,6 +25,13 @@ import org.springframework.web.filter.CorsFilter;
 public class CorsConfig {
 
     /**
+     * P1-16：允许的来源白名单，逗号分隔。默认 *（仅本地开发）；
+     * 生产通过 CORS_ALLOWED_ORIGINS 环境变量注入具体域名，如 https://wukonghuwei.cn。
+     */
+    @Value("${cors.allowed-origins:*}")
+    private String allowedOrigins;
+
+    /**
      * 创建CORS过滤器Bean
      * <p>
      * 配置详细的跨域策略：
@@ -35,14 +46,18 @@ public class CorsConfig {
     @Bean
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
-        // 允许所有来源（生产环境应限制具体域名）
-        config.addAllowedOriginPattern("*");
-        // 允许所有请求头
+        // P1-16：生产用白名单，开发默认 *
+        List<String> origins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim).filter(s -> !s.isEmpty()).toList();
+        if (origins.size() == 1 && "*".equals(origins.get(0))) {
+            config.addAllowedOriginPattern("*");
+            config.setAllowCredentials(false); // credentials + * 非法组合，通配时关闭凭证
+        } else {
+            origins.forEach(config::addAllowedOriginPattern);
+            config.setAllowCredentials(true);
+        }
         config.addAllowedHeader("*");
-        // 允许所有HTTP方法
         config.addAllowedMethod("*");
-        // 允许携带Cookie等凭证信息
-        config.setAllowCredentials(true);
         // 预检请求缓存时间（秒）
         config.setMaxAge(3600L);
 

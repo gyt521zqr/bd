@@ -44,4 +44,6 @@ public class PayOrder extends BaseEntity {
     private LocalDateTime expireTime;
     /** 第三方交易号 */
     private String tradeNo;
+    /** 使用的优惠券ID（下单时锁定，支付确认后核销） */
+    private Long couponId;
 }

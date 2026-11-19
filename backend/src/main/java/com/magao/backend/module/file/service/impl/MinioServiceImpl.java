@@ -32,6 +32,8 @@ public class MinioServiceImpl extends ServiceImpl<FileRecordMapper, FileRecord> 
     @Override
     public FileRecord upload(MultipartFile file, String bizType, Long bizId) {
         if (file.isEmpty()) { throw new BusinessException(ErrorCode.PARAM_ERROR, "上传文件不能为空"); }
+        validateBizType(bizType);   // P1-19：防路径穿越
+        validateExtension(file);    // P1-19：防上传可执行文件
         String folder = bizType + "/";
         String objectName = minioUtil.upload(file, folder);
         FileRecord record = new FileRecord();

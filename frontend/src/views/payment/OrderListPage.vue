@@ -141,7 +141,7 @@ function handleTabChange() {
   fetchOrders()
 }
 
-function handlePay(order: any) { router.push(`/pay?orderNo=${order.orderNo}`) }
+function handlePay(order: any) { router.push(`/pay/${order.id}`) }
 
 async function handleCancel(order: any) {
   try {

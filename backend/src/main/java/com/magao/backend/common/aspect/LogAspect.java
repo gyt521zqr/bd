@@ -2,6 +2,10 @@ package com.magao.backend.common.aspect;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.magao.backend.common.annotation.LogOperation;
+import com.magao.backend.module.system.entity.SysLog;
+import com.magao.backend.module.system.mapper.SysLogMapper;
+import com.magao.backend.module.user.entity.User;
+import com.magao.backend.module.user.mapper.UserMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -9,11 +13,14 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,6 +45,12 @@ public class LogAspect {
 
     /** JSON序列化工具 */
     private final ObjectMapper objectMapper;
+
+    /** 操作日志落库 */
+    private final SysLogMapper sysLogMapper;
+
+    /** 用户查询（回填操作人用户名） */
+    private final UserMapper userMapper;
 
     /**
      * 环绕通知 - 记录操作日志
@@ -94,6 +107,7 @@ public class LogAspect {
             log.error("[{}-{}] {} | 耗时: {}ms | 异常: {}",
                     logOperation.module(), logOperation.type(), logOperation.description(),
                     elapsedTime, e.getMessage());
+            saveLog(logOperation, requestUri, requestMethod, clientIp, params, "", (int) elapsedTime, 0);
             throw e;
         }
 
@@ -116,7 +130,47 @@ public class LogAspect {
                 logOperation.module(), logOperation.type(), logOperation.description(),
                 elapsedTime, resultStr);
 
+        saveLog(logOperation, requestUri, requestMethod, clientIp, params, resultStr, (int) elapsedTime, 1);
+
         return result;
+    }
+
+    /**
+     * 操作日志落库（P1-04：资金操作审计留痕）。
+     * <p>
+     * 失败仅记录告警日志，绝不影响业务主流程。
+     * </p>
+     */
+    private void saveLog(LogOperation logOperation, String requestUri, String requestMethod,
+                         String clientIp, String params, String resultStr, int costTime, int status) {
+        try {
+            SysLog sysLog = new SysLog();
+            sysLog.setModule(logOperation.module());
+            sysLog.setOperationType(logOperation.type());
+            sysLog.setDescription(logOperation.description());
+            sysLog.setRequestUrl(requestUri);
+            sysLog.setRequestMethod(requestMethod);
+            sysLog.setRequestParams(params);
+            sysLog.setResponseResult(resultStr);
+            sysLog.setIp(clientIp);
+            sysLog.setCostTime(costTime);
+            sysLog.setStatus(status);
+            sysLog.setCreateTime(LocalDateTime.now());
+
+            // 回填操作用户（从 SecurityContext 取 userId，再查 username）
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.getPrincipal() instanceof Long) {
+                Long userId = (Long) authentication.getPrincipal();
+                sysLog.setUserId(userId);
+                User user = userMapper.selectById(userId);
+                if (user != null) {
+                    sysLog.setUsername(user.getUsername());
+                }
+            }
+            sysLogMapper.insert(sysLog);
+        } catch (Exception e) {
+            log.warn("操作日志落库失败（不影响业务）：{}", e.getMessage());
+        }
     }
 
     /**

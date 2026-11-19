@@ -925,6 +925,7 @@ CREATE TABLE `pay_order` (
     `pay_time`    DATETIME      DEFAULT NULL            COMMENT '支付时间',
     `expire_time` DATETIME      DEFAULT NULL            COMMENT '过期时间',
     `trade_no`    VARCHAR(128)  DEFAULT NULL            COMMENT '第三方交易号',
+    `coupon_id`   BIGINT        DEFAULT NULL            COMMENT '使用的优惠券ID（付费核销用）',
     `create_time` DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `deleted`     INT           NOT NULL DEFAULT 0      COMMENT '逻辑删除标识（0-未删除，1-已删除）',
@@ -1335,9 +1336,11 @@ INSERT INTO `sys_role` (`id`, `role_code`, `role_name`, `description`, `sort_ord
 (3, 'OPERATOR', '运营', '运营角色，管理内容、营销活动等', 3, 1, NOW(), NOW(), 0),
 (4, 'STUDENT', '学生', '学生角色，学习课程、参加考试等', 4, 1, NOW(), NOW(), 0);
 
--- 管理员用户 (密码: admin123 -> BCrypt加密)
+-- 管理员用户（P0-17：BCrypt 强密码，无弱口令）
+-- 初始密码：Magao@Admin2026!（BCrypt 哈希如下）
+-- ⚠️ 生产环境首次登录后必须立即修改密码；建议改用环境变量注入初始化密码，勿用此默认口令。
 INSERT INTO `sys_user` (`id`, `username`, `password`, `nickname`, `real_name`, `phone`, `email`, `avatar`, `role_type`, `status`, `create_time`, `update_time`, `deleted`) VALUES
-(1, 'admin', 'f8f1a873a8be12ed67a20765f55dc705', '系统管理员', '管理员', '13800000000', 'admin@magao.com', NULL, 'ADMIN', 1, NOW(), NOW(), 0);
+(1, 'admin', '$2a$10$AjLoWYmmGmKqDFGxLHBVN.PLWN3WSx/KUc947eBQkKGqupvOm/eO6', '系统管理员', '管理员', '13800000000', 'admin@magao.com', NULL, 'ADMIN', 1, NOW(), NOW(), 0);
 
 -- 管理员角色关联
 INSERT INTO `sys_user_role` (`id`, `user_id`, `role_id`, `create_time`) VALUES
@@ -1360,22 +1363,24 @@ INSERT INTO `sys_config` (`id`, `config_key`, `config_value`, `description`, `co
 (5, 'upload_max_size', '104857600', '上传文件最大大小（字节）', 'file', NOW(), NOW(), 0);
 
 -- ============================================================================
--- 补充测试账号（密码统一 123456，MD5+盐与后端 CryptoUtil.md5WithSalt 一致）
--- 说明：admin/admin123 已在前文初始化，此处补充学生/教师/管理员测试账号
+-- 【P0-17】测试账号默认禁用：含 ADMIN 角色的弱口令账号是生产重大安全隐患
+-- 说明：admin/admin123 已在前文初始化为 BCrypt 强密码。
+-- 仅在【本地开发环境】需要测试数据时，手动取消下面这段的注释；生产环境严禁启用。
+-- 所有密码均为 BCrypt 哈希（明文 Test@Student2026!），符合后端 PasswordUtil 校验。
 -- ============================================================================
-INSERT INTO `sys_user` (`id`, `username`, `password`, `nickname`, `real_name`, `phone`, `email`, `avatar`, `role_type`, `status`, `create_time`, `update_time`, `deleted`) VALUES
-(2, 'student01', '4ed16b251bcf11bb8abf16a74a54c04b', '测试学生一', '测试学生一', '13800000101', 'student01@test.com', NULL, 'STUDENT', 1, NOW(), NOW(), 0),
-(3, 'student02', '4ed16b251bcf11bb8abf16a74a54c04b', '测试学生二', '测试学生二', '13800000102', 'student02@test.com', NULL, 'STUDENT', 1, NOW(), NOW(), 0),
-(4, 'student03', '4ed16b251bcf11bb8abf16a74a54c04b', '测试学生三', '测试学生三', '13800000103', 'student03@test.com', NULL, 'STUDENT', 1, NOW(), NOW(), 0),
-(5, 'teacher01', '4ed16b251bcf11bb8abf16a74a54c04b', '测试教师一', '测试教师一', '13800000201', 'teacher01@test.com', NULL, 'TEACHER', 1, NOW(), NOW(), 0),
-(6, 'admin01',   '4ed16b251bcf11bb8abf16a74a54c04b', '测试管理员', '测试管理员', '13800000301', 'admin01@test.com', NULL, 'ADMIN', 1, NOW(), NOW(), 0);
+-- INSERT INTO `sys_user` (`id`, `username`, `password`, `nickname`, `real_name`, `phone`, `email`, `avatar`, `role_type`, `status`, `create_time`, `update_time`, `deleted`) VALUES
+-- (2, 'student01', '$2a$10$HLEYEOvAWmmh7wQ5TNwSSeDPP/8Ahq96.SGOSTQzr6mAz8b28ZL3m', '测试学生一', '测试学生一', '13800000101', 'student01@test.com', NULL, 'STUDENT', 1, NOW(), NOW(), 0),
+-- (3, 'student02', '$2a$10$HLEYEOvAWmmh7wQ5TNwSSeDPP/8Ahq96.SGOSTQzr6mAz8b28ZL3m', '测试学生二', '测试学生二', '13800000102', 'student02@test.com', NULL, 'STUDENT', 1, NOW(), NOW(), 0),
+-- (4, 'student03', '$2a$10$HLEYEOvAWmmh7wQ5TNwSSeDPP/8Ahq96.SGOSTQzr6mAz8b28ZL3m', '测试学生三', '测试学生三', '13800000103', 'student03@test.com', NULL, 'STUDENT', 1, NOW(), NOW(), 0),
+-- (5, 'teacher01', '$2a$10$HLEYEOvAWmmh7wQ5TNwSSeDPP/8Ahq96.SGOSTQzr6mAz8b28ZL3m', '测试教师一', '测试教师一', '13800000201', 'teacher01@test.com', NULL, 'TEACHER', 1, NOW(), NOW(), 0),
+-- (6, 'admin01',   '$2a$10$HLEYEOvAWmmh7wQ5TNwSSeDPP/8Ahq96.SGOSTQzr6mAz8b28ZL3m', '测试管理员', '测试管理员', '13800000301', 'admin01@test.com', NULL, 'ADMIN', 1, NOW(), NOW(), 0);
 
-INSERT INTO `sys_user_role` (`id`, `user_id`, `role_id`, `create_time`) VALUES
-(2, 2, 4, NOW()),
-(3, 3, 4, NOW()),
-(4, 4, 4, NOW()),
-(5, 5, 2, NOW()),
-(6, 6, 1, NOW());
+-- INSERT INTO `sys_user_role` (`id`, `user_id`, `role_id`, `create_time`) VALUES
+-- (2, 2, 4, NOW()),
+-- (3, 3, 4, NOW()),
+-- (4, 4, 4, NOW()),
+-- (5, 5, 2, NOW()),
+-- (6, 6, 1, NOW());
 
 -- ============================================================================
 -- 补充内容种子数据（首页轮播 / 分类 / 资讯 / 课程 / 视频 / 考试）
@@ -1452,3 +1457,18 @@ INSERT INTO `exam_info` (`id`, `title`, `description`, `exam_type`, `course_id`,
 (103, 'C++ 快速体验练习', '平台内快速体验练习。', 5, NULL, 2, NOW() - INTERVAL 1 DAY, NOW() + INTERVAL 90 DAY, 60, 50, 30, 1, 0, 0, 0, NOW(), NOW(), 0),
 (104, 'GoC 快速体验练习', '平台内快速体验练习。', 5, NULL, 2, NOW() - INTERVAL 1 DAY, NOW() + INTERVAL 90 DAY, 45, 40, 24, 1, 0, 0, 0, NOW(), NOW(), 0),
 (105, '编程基础快速体验练习', '平台内快速体验练习。', 5, NULL, 2, NOW() - INTERVAL 1 DAY, NOW() + INTERVAL 90 DAY, 60, 50, 30, 1, 0, 0, 0, NOW(), NOW(), 0);
+
+-- 用户会员权益表（P0-04）
+CREATE TABLE IF NOT EXISTS `user_membership` (
+    `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `user_id`     BIGINT       NOT NULL                COMMENT '用户ID',
+    `plan_id`     BIGINT       NOT NULL                COMMENT '会员套餐ID',
+    `order_id`    BIGINT       DEFAULT NULL            COMMENT '开通订单ID',
+    `start_time`  DATETIME     NOT NULL                COMMENT '生效时间',
+    `expire_time` DATETIME     NOT NULL                COMMENT '到期时间',
+    `status`      INT          NOT NULL DEFAULT 1      COMMENT '状态（0-已过期，1-生效中）',
+    `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    UNIQUE INDEX `uk_user_plan` (`user_id`, `plan_id`),
+    INDEX `idx_expire` (`expire_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户会员权益表';

@@ -199,6 +199,13 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/about/AboutPage.vue'),
         meta: { title: '关于我们' },
       },
+      // 法律合规页面（P0-19：隐私政策 / 用户协议 / 儿童个人信息保护规则）
+      {
+        path: 'legal/:type',
+        name: 'Legal',
+        component: () => import('@/views/legal/LegalPage.vue'),
+        meta: { title: '法律与隐私' },
+      },
     ],
   },
 

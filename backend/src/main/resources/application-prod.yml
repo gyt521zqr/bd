@@ -111,3 +111,26 @@ logging:
   level:
     com.magao.backend: info
     com.magao.backend.module.*.mapper: warn
+
+# 生产安全（P1-14 / P1-22）
+springdoc:
+  api-docs:
+    enabled: false          # 生产关闭 API 文档，避免接口结构外泄
+  swagger-ui:
+    enabled: false
+
+# Actuator 仅暴露健康检查（docker-compose healthcheck 用），不暴露 env/beans 等敏感端点
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never   # 不对外暴露内部组件细节
+  server:
+    port: 8080              # 与主服务同端口，走 /actuator/health（JWT 白名单已放行）
+
+# 跨域白名单（P1-16）：多个域名用逗号分隔；为空则拒绝所有跨域
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:https://wukonghuwei.cn,https://www.wukonghuwei.cn}

@@ -99,7 +99,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { EditPen, Delete, CircleCheckFilled } from '@element-plus/icons-vue'
 import { getWrongBook, removeFromWrongBook, clearWrongBook, type WrongBookItem } from '@/utils/wrongBook'
-import { getExamMeta, QUESTION_TYPE_LABEL, type QuestionType } from '@/mock/examQuestions'
+import { QUESTION_TYPE_LABEL } from '@/utils/exam'
+import type { QuestionType } from '@/types'
 import { useExamStore } from '@/stores/exam'
 
 const router = useRouter()
@@ -123,9 +124,9 @@ function typeTag(type: string): 'info' | 'primary' | 'success' | 'warning' | 'da
   return map[type] || 'info'
 }
 
-/** 来源试卷标题 */
+/** 来源试卷标题（错题本条目未持久化标题，按来源试卷 id 展示） */
 function paperTitle(paperId: number): string {
-  return getExamMeta(paperId).title
+  return `试卷 #${paperId}`
 }
 
 /** 答案格式化 */
@@ -172,7 +173,7 @@ function clearAll() {
 /** 重练全部错题 */
 function retryAll() {
   const questions = items.value.map((i) => i.question)
-  const sourceId = items.value[0]?.sourcePaperId || 201
+  const sourceId = items.value[0]?.sourcePaperId || 0
   examStore.resetExam()
   examStore.setOverrideQuestions(questions, '错题重练', Math.max(15, questions.length * 2))
   router.push(`/exam-taking/${sourceId}?mode=wrong`)

@@ -76,9 +76,11 @@
           {{ siteStore.config.copyright }}
         </p>
         <div class="footer-bottom-links">
-          <a href="javascript:;">隐私政策</a>
+          <router-link to="/legal/privacy">隐私政策</router-link>
           <span class="link-divider">|</span>
-          <a href="javascript:;">用户协议</a>
+          <router-link to="/legal/agreement">用户协议</router-link>
+          <span class="link-divider">|</span>
+          <router-link to="/legal/children">儿童信息保护</router-link>
           <template v-if="siteStore.config.icp">
             <span class="link-divider">|</span>
             <span class="icp">{{ siteStore.config.icp }}</span>

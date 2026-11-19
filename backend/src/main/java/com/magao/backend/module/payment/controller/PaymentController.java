@@ -1,7 +1,9 @@
 package com.magao.backend.module.payment.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.magao.backend.common.annotation.LogOperation;
 import com.magao.backend.common.base.BaseController;
+import com.magao.backend.common.config.PaymentProperties;
 import com.magao.backend.common.dto.PageDTO;
 import com.magao.backend.common.result.Result;
 import com.magao.backend.module.payment.service.OrderService;
@@ -11,6 +13,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -26,8 +31,33 @@ import java.util.Map;
 public class PaymentController extends BaseController {
 
     private final OrderService orderService;
+    private final PaymentProperties paymentProperties;
+
+    /**
+     * 当前启用的支付方式（前端据此动态展示，避免 demo 模式展示真实渠道导致下单失败）
+     */
+    @Operation(summary = "支付配置：当前模式与可用支付方式")
+    @GetMapping("/config")
+    public Result<Map<String, Object>> config() {
+        Map<String, Object> m = new HashMap<>();
+        String mode = paymentProperties.getMode() == null ? "demo" : paymentProperties.getMode();
+        m.put("mode", mode);
+        m.put("demo", paymentProperties.isDemo());
+        List<String> methods = new ArrayList<>();
+        if (paymentProperties.isDemo()) {
+            // 演示模式：只提供一个"模拟支付"入口
+            methods.add("balance");
+        } else if ("alipay".equalsIgnoreCase(mode)) {
+            methods.add("alipay");
+        } else {
+            methods.add("wechat");
+        }
+        m.put("methods", methods);
+        return Result.success(m);
+    }
 
     @Operation(summary = "创建订单")
+    @LogOperation(module = "订单", type = "创建", description = "创建订单（含查库定价与优惠券锁定）", recordParam = true)
     @PostMapping("/order/create")
     public Result<OrderItemVO> createOrder(@RequestBody CreateOrderReq req) {
         return Result.success(orderService.createOrderFrontend(
@@ -45,22 +75,27 @@ public class PaymentController extends BaseController {
     @Operation(summary = "订单详情")
     @GetMapping("/order/detail/{orderId}")
     public Result<OrderItemVO> orderDetail(@PathVariable Long orderId) {
+        orderService.assertOwned(orderId, getCurrentUserId()); // P0-14
         return Result.success(orderService.getDetail(orderId));
     }
 
     @Operation(summary = "发起支付")
+    @LogOperation(module = "支付", type = "发起", description = "发起支付（调网关下单）", recordParam = true)
     @PostMapping("/pay")
     public Result<Map<String, String>> pay(@RequestBody PayReq req) {
+        orderService.assertOwned(req.getOrderId(), getCurrentUserId()); // P0-14
         return Result.success(orderService.payOrder(req.getOrderId(), req.getPayMethod()));
     }
 
     @Operation(summary = "支付状态")
     @GetMapping("/status/{orderId}")
     public Result<Map<String, Object>> status(@PathVariable Long orderId) {
+        orderService.assertOwned(orderId, getCurrentUserId()); // P0-14
         return Result.success(orderService.getStatus(orderId));
     }
 
     @Operation(summary = "取消订单")
+    @LogOperation(module = "订单", type = "取消", description = "取消订单", recordParam = true)
     @PutMapping("/order/{orderId}/cancel")
     public Result<Void> cancel(@PathVariable Long orderId) {
         orderService.cancelOrder(orderId, getCurrentUserId());
@@ -68,6 +103,7 @@ public class PaymentController extends BaseController {
     }
 
     @Operation(summary = "申请退款")
+    @LogOperation(module = "退款", type = "申请", description = "申请退款（调网关退款）", recordParam = true)
     @PostMapping("/order/{orderId}/refund")
     public Result<Void> refund(@PathVariable Long orderId, @RequestBody(required = false) RefundReq req) {
         orderService.refundOrder(orderId, getCurrentUserId(), req == null ? null : req.getReason());

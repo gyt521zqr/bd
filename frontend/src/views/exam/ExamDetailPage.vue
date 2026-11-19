@@ -136,20 +136,16 @@
             </h3>
             <div class="paper-info-grid">
               <div class="paper-info-item">
-                <span class="paper-info-value">{{ paperTotalScore }}</span>
+                <span class="paper-info-value">{{ exam.totalScore || '—' }}</span>
                 <span class="paper-info-label">试卷总分</span>
               </div>
               <div class="paper-info-item">
-                <span class="paper-info-value">{{ paperPassScore }}</span>
+                <span class="paper-info-value">{{ exam.passScore || '—' }}</span>
                 <span class="paper-info-label">及格分</span>
               </div>
               <div class="paper-info-item">
-                <span class="paper-info-value">{{ paperMeta.duration }}</span>
-                <span class="paper-info-label">考试时长(分钟)</span>
-              </div>
-              <div class="paper-info-item">
-                <span class="paper-info-value">{{ paperQuestions.length }}</span>
-                <span class="paper-info-label">题目数量</span>
+                <span class="paper-info-value">{{ exam.examDuration || '—' }}</span>
+                <span class="paper-info-label">考试时长</span>
               </div>
             </div>
           </div>
@@ -325,8 +321,7 @@
 <script setup lang="ts">
 /**
  * ExamDetailPage - 赛事详情页
- * 赛事基本信息来自真实接口（getExamList）；后端未下发的字段显示「暂未公布」
- * 试卷信息条依赖本地题库业务模块（@/mock/examQuestions），与做题页共用同一题源
+ * 赛事基本信息与试卷信息条均来自真实接口（getExamList）；后端未下发的字段显示「暂未公布」
  * 接口失败或查无此赛事时保持空态，显示「暂无赛事详情」
  */
 import { computed, ref, onUnmounted, onMounted } from 'vue'
@@ -336,7 +331,6 @@ import {
   ArrowLeft, Document, User, Clock, Medal, Warning, Location,
   Trophy, OfficeBuilding, Monitor, VideoPlay, EditPen, DataAnalysis
 } from '@element-plus/icons-vue'
-import { getExamQuestions, calcTotalScore, getExamMeta } from '@/mock/examQuestions'
 import { getExamList } from '@/api/exam'
 import type { ExamItem } from '@/types'
 
@@ -426,6 +420,7 @@ interface ExamData {
   registerDeadline: string
   examDuration: string
   totalScore: number
+  passScore: number
   prizes: { level: string; desc: string; color: string }[]
   announcement: string
   registerAnnouncement: string
@@ -450,6 +445,7 @@ const emptyExam: ExamData = {
   registerDeadline: '',
   examDuration: '',
   totalScore: 0,
+  passScore: 0,
   prizes: [],
   announcement: '',
   registerAnnouncement: '',
@@ -484,6 +480,7 @@ function normalizeExamDetail(item: ExamItem): ExamData {
     examTime: item.startTime || '',
     examDuration: item.duration ? `${item.duration}分钟` : '',
     totalScore: item.totalScore || 0,
+    passScore: item.passScore || 0,
   }
 }
 
@@ -505,11 +502,7 @@ async function loadExamDetail() {
   }
 }
 
-// ========== 试卷信息条（与做题页共用同一题源） ==========
-const paperQuestions = computed(() => getExamQuestions(examId.value))
-const paperTotalScore = computed(() => calcTotalScore(paperQuestions.value))
-const paperPassScore = computed(() => Math.round(paperTotalScore.value * 0.6))
-const paperMeta = computed(() => getExamMeta(examId.value))
+// ========== 试卷信息条（直接使用真实赛事字段，不再引用本地假题源） ==========
 
 
 

@@ -24,8 +24,9 @@ services:
     image: mysql:8.0
     container_name: magao-mysql
     restart: always
+    # 安全加固(P0-20)：数据库严禁暴露公网，仅宿主机本地可访问；外部统一走 Nginx 反向代理
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-magao_platform}
@@ -71,8 +72,9 @@ services:
     image: redis:7-alpine
     container_name: magao-redis
     restart: always
+    # 安全加固(P0-20)：Redis 不暴露公网；backend 经内网 redis:6379 访问
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     command:
       - redis-server
       - --maxmemory 4gb
@@ -83,8 +85,9 @@ services:
       - --save 300 10
       - --save 60 10000
       - --requirepass ${REDIS_PASSWORD}
+      # 安全加固(P0-20)：容器内 bind 内网网卡即可，开启保护模式
       - --bind 0.0.0.0
-      - --protected-mode no
+      - --protected-mode yes
       - --tcp-keepalive 60
     volumes:
       - redis_data:/data
@@ -112,9 +115,10 @@ services:
     image: rabbitmq:3.12-management-alpine
     container_name: magao-rabbitmq
     restart: always
+    # 安全加固(P0-20)：消息中间件不暴露公网；管理台如确需外网访问应经 SSH 隧道 / Nginx + 鉴权
     ports:
-      - "${RABBITMQ_PORT:-5672}:5672"
-      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MGMT_PORT:-15672}:15672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
@@ -186,9 +190,13 @@ services:
     image: judge0/judge0-ce:latest
     container_name: magao-judge0-1
     restart: always
+    # 安全说明(P0-20)：judge0 CE 的 isolate 沙箱依赖 privileged 创建 namespace/cgroup，无法直接移除；
+    # 已通过「移除 docker.sock + 端口仅绑回环 + ENABLE_NETWORK=false + 非 root runner + 资源限额」多层缓解。
+    # 更彻底方案：将 judge0 独立部署到专用 VM，禁止其访问业务内网。
     privileged: true
+    # 安全加固(P0-20)：判题接口不暴露公网
     ports:
-      - "${JUDGE0_PORT_1:-2358}:2358"
+      - "127.0.0.1:${JUDGE0_PORT_1:-2358}:2358"
     environment:
       ENABLE_NETWORK: "false"
       CPU_TIME_LIMIT: 5
@@ -199,7 +207,7 @@ services:
       TZ: Asia/Shanghai
     volumes:
       - judge0_1_data:/var/judge0
-      - /var/run/docker.sock:/var/run/docker.sock
+      # 安全加固(P0-20)：移除 docker.sock 挂载，杜绝判题容器经宿主机 Docker API 逃逸
     networks:
       - magao-network
     healthcheck:
@@ -221,9 +229,11 @@ services:
     image: judge0/judge0-ce:latest
     container_name: magao-judge0-2
     restart: always
+    # 安全说明(P0-20)：同 judge0-1，privileged 为 isolate 沙箱必需，已用多层缓解
     privileged: true
+    # 安全加固(P0-20)：判题接口不暴露公网
     ports:
-      - "${JUDGE0_PORT_2:-2359}:2359"
+      - "127.0.0.1:${JUDGE0_PORT_2:-2359}:2359"
     environment:
       ENABLE_NETWORK: "false"
       CPU_TIME_LIMIT: 5
@@ -234,7 +244,7 @@ services:
       TZ: Asia/Shanghai
     volumes:
       - judge0_2_data:/var/judge0
-      - /var/run/docker.sock:/var/run/docker.sock
+      # 安全加固(P0-20)：移除 docker.sock 挂载，杜绝判题容器经宿主机 Docker API 逃逸
     networks:
       - magao-network
     healthcheck:
@@ -256,9 +266,11 @@ services:
     image: judge0/judge0-ce:latest
     container_name: magao-judge0-3
     restart: always
+    # 安全说明(P0-20)：同 judge0-1，privileged 为 isolate 沙箱必需，已用多层缓解
     privileged: true
+    # 安全加固(P0-20)：判题接口不暴露公网
     ports:
-      - "${JUDGE0_PORT_3:-2360}:2360"
+      - "127.0.0.1:${JUDGE0_PORT_3:-2360}:2360"
     environment:
       ENABLE_NETWORK: "false"
       CPU_TIME_LIMIT: 5
@@ -269,7 +281,7 @@ services:
       TZ: Asia/Shanghai
     volumes:
       - judge0_3_data:/var/judge0
-      - /var/run/docker.sock:/var/run/docker.sock
+      # 安全加固(P0-20)：移除 docker.sock 挂载，杜绝判题容器经宿主机 Docker API 逃逸
     networks:
       - magao-network
     healthcheck:

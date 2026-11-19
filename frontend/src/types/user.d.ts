@@ -46,6 +46,8 @@ export interface RegisterParams {
   smsCode: string
   nickname: string
   password: string
+  agreed?: boolean
+  guardianConsent?: boolean
 }
 
 /** 登录响应 */

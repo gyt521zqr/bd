@@ -31,24 +31,9 @@
       </div>
     </section>
 
-    <!-- 语言筛选 -->
+    <!-- 顶部工具条（错题本入口） -->
     <section class="bank-filter">
       <div class="filter-row">
-        <div class="filter-pills">
-          <button class="pill" :class="{ active: activeLang === '' }" @click="activeLang = ''">
-            全部
-          </button>
-          <button
-            v-for="lang in langOptions"
-            :key="lang.key"
-            class="pill"
-            :class="{ active: activeLang === lang.key }"
-            @click="activeLang = lang.key"
-          >
-            <span class="pill-emoji">{{ lang.emoji }}</span>
-            {{ lang.label }}
-          </button>
-        </div>
         <router-link to="/wrong-book" class="wrong-book-entry">
           <el-icon><Notebook /></el-icon>
           错题本
@@ -60,26 +45,18 @@
     <!-- 试卷列表 -->
     <section class="bank-list">
       <div class="paper-grid">
-        <div v-for="paper in filteredPapers" :key="paper.id" class="paper-card">
-          <div class="paper-cover" :style="{ backgroundImage: `url(${langCover(paper.language)})` }">
+        <div v-for="paper in papers" :key="paper.id" class="paper-card">
+          <div class="paper-cover" :style="{ backgroundImage: `url(${langCover()})` }">
             <div class="paper-cover-overlay"></div>
-            <span class="paper-level-badge">{{ paper.level }}</span>
-            <span class="paper-lang-badge">{{ paper.languageLabel }}</span>
-            <span class="paper-cover-emoji">{{ langEmoji(paper.language) }}</span>
+            <span class="paper-lang-badge">模拟练习</span>
+            <span class="paper-cover-emoji">{{ langEmoji() }}</span>
           </div>
           <div class="paper-body">
-            <div class="paper-tag-row">
-              <el-tag size="small" type="warning" effect="light">{{ paper.tag }}</el-tag>
-            </div>
-            <h3 class="paper-title">{{ paper.title }}</h3>
+            <h3 class="paper-title">{{ paper.paperName }}</h3>
             <div class="paper-meta">
               <span class="meta-item">
                 <el-icon><Document /></el-icon>
                 {{ paper.questionCount }} 题
-              </span>
-              <span class="meta-item">
-                <el-icon><Timer /></el-icon>
-                {{ paper.duration }} 分钟
               </span>
               <span class="meta-item">
                 <el-icon><DataAnalysis /></el-icon>
@@ -91,7 +68,7 @@
                 <el-icon><View /></el-icon>
                 预览
               </button>
-              <button class="paper-start-btn" @click="startPractice(paper)">
+              <button class="paper-start-btn" :disabled="!paper.examId" @click="startPractice(paper)">
                 开始练习
                 <el-icon><ArrowRight /></el-icon>
               </button>
@@ -101,14 +78,15 @@
       </div>
 
       <!-- 空状态 -->
-      <el-empty v-if="filteredPapers.length === 0" description="暂无该语言的题库" :image-size="100" />
+      <el-empty v-if="papers.length === 0" description="暂无试卷，请先到后台录入" :image-size="100" />
     </section>
 
     <!-- 试卷预览弹窗 -->
     <PaperPreviewDialog
       v-model="previewVisible"
       :paper-id="previewPaperId"
-      @start="startPractice({ id: previewPaperId })"
+      :title="papers.find((p) => p.id === previewPaperId)?.paperName"
+      @start="startPractice(papers.find((p) => p.id === previewPaperId))"
     />
   </div>
 </template>
@@ -118,16 +96,28 @@
  * QuestionBankPage - 题库中心
  * 展示所有真题试卷（覆盖 6 个编程工具），点击「开始练习」进入模拟练习（复用考试中心做题页）
  */
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Document, Timer, DataAnalysis, ArrowRight, Notebook, View } from '@element-plus/icons-vue'
-import { examPaperList } from '@/mock/examQuestions'
+import { ElMessage } from 'element-plus'
+import { Document, DataAnalysis, ArrowRight, Notebook, View } from '@element-plus/icons-vue'
+import { getPaperList } from '@/api/exam'
+import type { ExamPaper } from '@/types'
 import { getWrongBook } from '@/utils/wrongBook'
 import PaperPreviewDialog from '@/components/exam/PaperPreviewDialog.vue'
 
 const router = useRouter()
 
-const papers = computed(() => examPaperList)
+/** 试卷列表（来自后端真实数据，无本地假题库） */
+const papers = ref<ExamPaper[]>([])
+
+onMounted(async () => {
+  try {
+    const res = await getPaperList()
+    if (res?.code === 200 && Array.isArray(res.data)) papers.value = res.data
+  } catch (e) {
+    console.warn('[QuestionBankPage] 试卷列表加载失败', e)
+  }
+})
 
 /** 错题本数量 */
 const wrongCount = computed(() => getWrongBook().length)
@@ -135,59 +125,33 @@ const wrongCount = computed(() => getWrongBook().length)
 /** 试卷预览弹窗 */
 const previewVisible = ref(false)
 const previewPaperId = ref(0)
-function openPreview(paper: { id: number }) {
+function openPreview(paper: ExamPaper) {
   previewPaperId.value = paper.id
   previewVisible.value = true
 }
 
-const activeLang = ref('')
+const totalQuestions = computed(() => papers.value.reduce((s, p) => s + (p.questionCount || 0), 0))
 
-/** 语言筛选选项 */
-const langOptions = [
-  { key: 'python', label: 'Python', emoji: '🐍' },
-  { key: 'cpp', label: 'C++', emoji: '⚡' },
-  { key: 'scratch3', label: 'Scratch', emoji: '🧩' },
-  { key: 'scratchjr', label: 'ScratchJr', emoji: '🐱' },
-  { key: 'pythonturtle', label: 'Python Turtle', emoji: '🐢' },
-  { key: 'goc', label: 'GoC', emoji: '🎨' },
-]
-
-const filteredPapers = computed(() => {
-  if (!activeLang.value) return papers.value
-  return papers.value.filter((p) => p.language === activeLang.value)
-})
-
-const totalQuestions = computed(() => papers.value.reduce((s, p) => s + p.questionCount, 0))
-
-/** 语言 → 封面图（复用统一风格插图） */
-function langCover(lang: string): string {
-  const map: Record<string, string> = {
-    python: '/images/contest/contest-blue.png',
-    cpp: '/images/contest/contest-cyan.png',
-    scratch3: '/images/contest/contest-orange.png',
-    scratchjr: '/images/contest/contest-purple.png',
-    pythonturtle: '/images/contest/contest-magenta.png',
-    goc: '/images/contest/contest-green.png',
-  }
-  return map[lang] || '/images/contest/contest-blue.png'
+/** 固定封面（后端试卷无语言维度，统一使用通用封面） */
+function langCover(): string {
+  return '/images/contest/contest-blue.png'
 }
 
-/** 语言 emoji */
-function langEmoji(lang: string): string {
-  const map: Record<string, string> = {
-    python: '🐍',
-    cpp: '⚡',
-    scratch3: '🧩',
-    scratchjr: '🐱',
-    pythonturtle: '🐢',
-    goc: '🎨',
-  }
-  return map[lang] || '💻'
+/** 语言 emoji（后端试卷无语言维度，统一展示） */
+function langEmoji(): string {
+  return '📝'
 }
 
-/** 开始练习 → 进入模拟练习（复用考试中心做题页） */
-function startPractice(paper: { id: number }) {
-  router.push(`/exam-taking/${paper.id}`)
+/** 开始练习 → 进入该试卷关联考试的模拟练习（复用考试中心做题页） */
+function startPractice(paper: ExamPaper | undefined) {
+  if (!paper) return
+  // 试卷关联的考试ID（练习复用考试流程）；未关联考试则无法进入
+  const examId = paper.examId
+  if (!examId) {
+    ElMessage.warning('该试卷未关联考试，暂不支持练习')
+    return
+  }
+  router.push(`/exam-taking/${examId}`)
 }
 </script>
 
@@ -576,6 +540,14 @@ function startPractice(paper: { id: number }) {
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(22, 93, 255, 0.35);
     background: linear-gradient(135deg, #0E42D2 0%, #165DFF 100%);
+  }
+
+  &:disabled {
+    background: #c0c4cc;
+    color: #fff;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
   }
 }
 

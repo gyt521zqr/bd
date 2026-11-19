@@ -79,6 +79,21 @@
           <el-form-item label="确认密码" prop="confirmPassword">
             <el-input v-model="form.confirmPassword" type="password" placeholder="请再次输入密码" show-password />
           </el-form-item>
+          <!-- 合规必需(P0-19)：协议勾选 + 监护人同意留痕 -->
+          <el-form-item prop="agreed">
+            <el-checkbox v-model="form.agreed" class="agree-checkbox">
+              我已阅读并同意
+              <router-link to="/legal/agreement" target="_blank">《用户协议》</router-link>
+              与
+              <router-link to="/legal/privacy" target="_blank">《隐私政策》</router-link>
+            </el-checkbox>
+          </el-form-item>
+          <el-form-item prop="guardianConsent">
+            <el-checkbox v-model="form.guardianConsent" class="agree-checkbox">
+              本人为监护人（或已取得监护人同意），已阅读并同意
+              <router-link to="/legal/children" target="_blank">《儿童个人信息保护规则》</router-link>
+            </el-checkbox>
+          </el-form-item>
           <el-form-item>
             <div class="form-actions">
               <el-button class="prev-btn" @click="currentStep = 1" round>
@@ -137,6 +152,8 @@ const form = reactive({
   nickname: '',
   password: '',
   confirmPassword: '',
+  agreed: false,
+  guardianConsent: false,
 })
 
 const validateConfirm = (_r: any, v: string, cb: any) => {
@@ -153,6 +170,8 @@ const rules: FormRules = {
   nickname: [{ required: true, message: '请输入昵称', trigger: 'blur' }, { min: 2, max: 20, message: '昵称2-20个字符', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }, { min: 8, max: 20, message: '密码8-20位', trigger: 'blur' }],
   confirmPassword: [{ required: true, message: '请确认密码', trigger: 'blur' }, { validator: validateConfirm, trigger: 'blur' }],
+  agreed: [{ validator: (_r: any, v: boolean, cb: any) => v ? cb() : cb(new Error('请先阅读并同意用户协议与隐私政策')), trigger: 'change' }],
+  guardianConsent: [{ validator: (_r: any, v: boolean, cb: any) => v ? cb() : cb(new Error('请确认已取得监护人同意')), trigger: 'change' }],
 }
 
 async function goStep2() {
@@ -166,7 +185,14 @@ async function handleRegister() {
   if (!valid) return
   loading.value = true
   try {
-    await register({ phone: form.phone, smsCode: form.smsCode, nickname: form.nickname, password: form.password })
+    await register({
+      phone: form.phone,
+      smsCode: form.smsCode,
+      nickname: form.nickname,
+      password: form.password,
+      agreed: form.agreed,
+      guardianConsent: form.guardianConsent,
+    })
     ElMessage.success('注册成功')
     currentStep.value = 3
   } catch (error: any) {
@@ -408,6 +434,18 @@ async function handleSendSms() {
 
   &:hover .btn-icon {
     transform: translateX(4px);
+  }
+}
+
+.agree-checkbox {
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: left;
+  :deep(.el-checkbox__label) { white-space: normal; }
+  a {
+    color: $primary-color;
+    text-decoration: none;
+    &:hover { text-decoration: underline; }
   }
 }
 

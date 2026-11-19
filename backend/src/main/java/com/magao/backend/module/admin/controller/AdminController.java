@@ -15,7 +15,9 @@ import com.magao.backend.module.cms.mapper.BannerMapper;
 import com.magao.backend.module.cms.mapper.CategoryMapper;
 import com.magao.backend.module.cms.mapper.NewsMapper;
 import com.magao.backend.module.cms.mapper.PartnerMapper;
+import com.magao.backend.module.classmanage.entity.ClassStudent;
 import com.magao.backend.module.classmanage.entity.TeachClass;
+import com.magao.backend.module.classmanage.mapper.ClassStudentMapper;
 import com.magao.backend.module.classmanage.mapper.TeachClassMapper;
 import com.magao.backend.module.competition.entity.CompetitionInfo;
 import com.magao.backend.module.competition.entity.CompetitionParticipant;
@@ -83,6 +85,7 @@ public class AdminController extends BaseController {
     private final UserMapper userMapper;
     private final CourseMapper courseMapper;
     private final TeachClassMapper teachClassMapper;
+    private final ClassStudentMapper classStudentMapper;
     private final CompetitionInfoMapper competitionInfoMapper;
     private final CompetitionParticipantMapper competitionParticipantMapper;
     private final BannerMapper bannerMapper;
@@ -134,7 +137,16 @@ public class AdminController extends BaseController {
     @Operation(summary = "班级列表")
     @GetMapping("/class/list")
     public Result<Page<TeachClass>> classList(PageDTO pageDTO) {
-        return Result.success(teachClassMapper.selectPage(new Page<>(pageDTO.getPageNum(), pageDTO.getPageSize()), null));
+        LambdaQueryWrapper<TeachClass> qw = new LambdaQueryWrapper<>();
+        // P0-13：教师/运营只看自己负责的班级，ADMIN 看全部
+        Long currentId = getCurrentUserId();
+        User current = currentId == null ? null : userMapper.selectById(currentId);
+        boolean admin = current != null && "ADMIN".equalsIgnoreCase(current.getRoleType());
+        if (!admin && currentId != null) {
+            qw.eq(TeachClass::getTeacherId, currentId);
+        }
+        return Result.success(teachClassMapper.selectPage(
+                new Page<>(pageDTO.getPageNum(), pageDTO.getPageSize()), qw));
     }
 
     @Operation(summary = "赛事列表")
@@ -170,7 +182,29 @@ public class AdminController extends BaseController {
     @Operation(summary = "成绩列表")
     @GetMapping("/score/list")
     public Result<Page<ExamRecord>> scoreList(PageDTO pageDTO) {
-        return Result.success(examRecordMapper.selectPage(new Page<>(pageDTO.getPageNum(), pageDTO.getPageSize()), null));
+        LambdaQueryWrapper<ExamRecord> qw = new LambdaQueryWrapper<>();
+        // P1-12：教师/运营只看自己班级学生的成绩，ADMIN 看全部
+        Long currentId = getCurrentUserId();
+        User current = currentId == null ? null : userMapper.selectById(currentId);
+        boolean admin = current != null && "ADMIN".equalsIgnoreCase(current.getRoleType());
+        if (!admin && currentId != null) {
+            java.util.List<Long> classIds = teachClassMapper.selectList(
+                    new LambdaQueryWrapper<TeachClass>().eq(TeachClass::getTeacherId, currentId))
+                    .stream().map(TeachClass::getId).toList();
+            if (classIds.isEmpty()) {
+                return Result.success(new Page<>(pageDTO.getPageNum(), pageDTO.getPageSize()));
+            }
+            java.util.List<Long> studentIds = classStudentMapper.selectList(
+                    new LambdaQueryWrapper<ClassStudent>().in(ClassStudent::getClassId, classIds))
+                    .stream().map(ClassStudent::getUserId).distinct().toList();
+            if (studentIds.isEmpty()) {
+                return Result.success(new Page<>(pageDTO.getPageNum(), pageDTO.getPageSize()));
+            }
+            qw.in(ExamRecord::getUserId, studentIds);
+        }
+        qw.orderByDesc(ExamRecord::getCreateTime);
+        return Result.success(examRecordMapper.selectPage(
+                new Page<>(pageDTO.getPageNum(), pageDTO.getPageSize()), qw));
     }
 
     @Operation(summary = "练习列表")

@@ -2,9 +2,7 @@
  * 考试相关 API 接口
  */
 import request from './index'
-import type { Result, PageResult, PageQuery, ExamItem, ExamRecord, GradingTask } from '@/types'
-import { getExamQuestions } from '@/mock/examQuestions'
-import type { ExamQuestion } from '@/mock/examQuestions'
+import type { Result, PageResult, PageQuery, ExamItem, ExamRecord, GradingTask, ExamQuestion, ExamPaper, ExamResultDetail } from '@/types'
 
 /** 获取考试列表 */
 export function getExamList(params: PageQuery & { status?: string }) {
@@ -65,18 +63,24 @@ export function gradeExam(data: { recordId: number; questionId: number; score: n
 }
 
 /**
- * 题库单源（P1b）：优先从后端拉取试卷题目，失败回退本地 mock。
- * 后端端点：GET /exam/paper/{paperId}/questions -> Result<ExamQuestionVO[]>
+ * 题库单源：仅从后端拉取试卷题目，失败直接抛错（不再回退任何本地假题）。
+ * 后端端点：GET /exam/paper/{paperId}/questions -> Result<ExamQuestion[]>
  * 返回结构与前端 ExamQuestion 一致（options 为数组、templateCode 为字符串）。
  */
 export async function fetchPaperQuestions(paperId: number): Promise<ExamQuestion[]> {
-  try {
-    const res = await request.get<any, Result<ExamQuestion[]>>(`/exam/paper/${paperId}/questions`)
-    if (res?.code === 200 && Array.isArray(res.data) && res.data.length > 0) {
-      return res.data
-    }
-  } catch (e) {
-    console.warn('[fetchPaperQuestions] 后端题目获取失败，回退本地题源', e)
+  const res = await request.get<any, Result<ExamQuestion[]>>(`/exam/paper/${paperId}/questions`)
+  if (res?.code === 200 && Array.isArray(res.data)) {
+    return res.data
   }
-  return getExamQuestions(paperId)
+  throw new Error('试卷题目获取失败')
+}
+
+/** 试卷列表（题库中心，真实数据） */
+export function getPaperList() {
+  return request.get<any, Result<ExamPaper[]>>('/exam/paper/list')
+}
+
+/** 逐题答题详情（成绩页，含标准答案与解析，仅本人可查） */
+export function getExamResultDetail(recordId: number) {
+  return request.get<any, Result<ExamResultDetail[]>>(`/exam/result/${recordId}/detail`)
 }

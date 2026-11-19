@@ -12,18 +12,18 @@ import java.util.List;
  */
 public interface ClassService {
 
-    /** 获取班级列表 */
-    List<TeachClass> listClasses(Long teacherId, Integer status);
+    /** 获取班级列表（currentUserId 用于教师数据隔离，ADMIN 可看全部） */
+    List<TeachClass> listClasses(Long teacherId, Integer status, Long currentUserId);
 
-    /** 获取班级详情 */
-    TeachClass getDetail(Long classId);
+    /** 获取班级详情（currentUserId 用于归属校验） */
+    TeachClass getDetail(Long classId, Long currentUserId);
 
-    /** 创建班级 */
-    TeachClass createClass(TeachClass teachClass);
+    /** 创建班级（teacherId 服务端强制为当前用户，防伪造） */
+    TeachClass createClass(TeachClass teachClass, Long currentUserId);
 
-    /** 添加学生到班级 */
-    void addStudent(Long classId, Long userId);
+    /** 添加学生到班级（currentUserId 用于归属校验） */
+    void addStudent(Long classId, Long userId, Long currentUserId);
 
-    /** 从班级移除学生 */
-    void removeStudent(Long classId, Long userId);
+    /** 从班级移除学生（currentUserId 用于归属校验） */
+    void removeStudent(Long classId, Long userId, Long currentUserId);
 }

@@ -1,7 +1,9 @@
 package com.magao.backend.module.competition.controller;
 
+import com.magao.backend.common.annotation.RequireRole;
 import com.magao.backend.common.base.BaseController;
 import com.magao.backend.common.dto.PageDTO;
+import com.magao.backend.common.enums.UserRoleEnum;
 import com.magao.backend.common.exception.BusinessException;
 import com.magao.backend.common.result.ErrorCode;
 import com.magao.backend.common.result.Result;
@@ -38,6 +40,7 @@ public class CompetitionController extends BaseController {
 
     @Operation(summary = "创建竞赛")
     @PostMapping("/create")
+    @RequireRole({UserRoleEnum.ADMIN, UserRoleEnum.TEACHER, UserRoleEnum.OPERATOR}) // P1-11
     public Result<CompetitionInfo> create(@Valid @RequestBody CompetitionCreateDTO createDTO) {
         return Result.success(competitionService.createCompetition(createDTO, getCurrentUserId()));
     }

@@ -19,6 +19,9 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "vod")
 public class VodConfig {
 
+    /** 是否启用真实火山 VOD（false 时所有 VOD 端点明确报未配置，不返回假凭证） */
+    private boolean enabled = false;
+
     /** 火山引擎账号 Access Key */
     private String accessKey;
 

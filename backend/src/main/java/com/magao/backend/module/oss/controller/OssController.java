@@ -4,6 +4,8 @@ import com.magao.backend.common.base.BaseController;
 import com.magao.backend.common.result.Result;
 import com.magao.backend.module.file.entity.FileRecord;
 import com.magao.backend.module.file.service.FileService;
+import com.magao.backend.module.user.entity.User;
+import com.magao.backend.module.user.mapper.UserMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
@@ -39,6 +41,17 @@ import java.util.*;
 public class OssController extends BaseController {
 
     private final FileService fileService;
+    private final UserMapper userMapper;
+
+    /** P0-15：校验当前用户是否有权删除文件（ADMIN 可删任意，其余仅本人上传的） */
+    private boolean canDelete(Long fileId, Long currentUserId) {
+        FileRecord record = fileService.getById(fileId);
+        if (record == null) return false; // 不存在按失败处理，不泄露存在性
+        if (currentUserId != null && currentUserId.equals(record.getUploadUserId())) return true;
+        if (currentUserId == null) return false;
+        User user = userMapper.selectById(currentUserId);
+        return user != null && "ADMIN".equalsIgnoreCase(user.getRoleType());
+    }
 
     /** 与 LocalFileServiceImpl.UPLOAD_DIR 保持一致 */
     private static final String UPLOAD_DIR = "C:\\tools\\magao-build\\uploads";
@@ -130,6 +143,9 @@ public class OssController extends BaseController {
         String objectKey = body.get("objectKey") != null ? body.get("objectKey").toString() : null;
         Long fid = parseFileId(objectKey);
         if (fid != null) {
+            if (!canDelete(fid, getCurrentUserId())) {
+                return Result.fail("无权删除该文件");
+            }
             fileService.deleteFile(fid);
         }
         return Result.success();
@@ -146,6 +162,7 @@ public class OssController extends BaseController {
                 String key = k != null ? k.toString() : "";
                 Long fid = parseFileId(key);
                 if (fid == null) { failed.add(key); continue; }
+                if (!canDelete(fid, getCurrentUserId())) { failed.add(key); continue; }
                 try {
                     fileService.deleteFile(fid);
                     deleted.add(key);

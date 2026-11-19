@@ -97,9 +97,14 @@
       </div>
 
       <QRCodePay
-        v-if="orderReady && payMethod !== 'balance'"
+        v-if="orderReady"
         :visible="showQR"
-        :order-no="order.orderNo"
+        :order-no="payResult.orderNo || order.orderNo"
+        :order-id="order.id"
+        :qr-code="payResult.qrCode"
+        :demo="isDemo"
+        :pay-method="payMethod"
+        :amount="order.payAmount"
         @close="showQR = false"
         @success="handlePaySuccess"
       />
@@ -125,7 +130,7 @@
           @click="handlePay"
         >
           <el-icon><Wallet /></el-icon>
-          {{ payMethod === 'balance' ? '确认支付' : '扫码支付' }}
+          {{ isDemo ? '模拟支付' : (payMethod === 'balance' ? '确认支付' : '扫码支付') }}
         </el-button>
       </div>
 
@@ -152,7 +157,7 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import QRCodePay from '@/components/payment/QRCodePay.vue'
-import { createOrder, getOrderDetail, payOrder } from '@/api/payment'
+import { createOrder, getOrderDetail, getOrderList, payOrder, getPayConfig } from '@/api/payment'
 
 const route = useRoute()
 const router = useRouter()
@@ -161,6 +166,12 @@ const paying = ref(false)
 const showQR = ref(false)
 const selectedMethod = ref('')
 const amountPopped = ref(false)
+const isDemo = ref(false)
+
+/** 后端 /payment/pay 返回的真实支付凭证 */
+const payResult = ref<{ qrCode: string; orderNo: string; orderId: string; demo: string }>({
+  qrCode: '', orderNo: '', orderId: '', demo: '',
+})
 
 // 3D卡片效果
 const orderCardRef = ref<HTMLElement>()
@@ -202,33 +213,53 @@ function popAmount() {
   setTimeout(() => { amountPopped.value = false }, 400)
 }
 
-const payMethods = [
-  {
-    value: 'wechat',
-    label: '微信支付',
-    desc: '推荐使用微信扫码支付',
-    icon: ChatDotRound,
+/** 支付方式元数据（展示用），实际可选列表由后端 /payment/config 决定 */
+const PAY_METHOD_META: Record<string, {
+  label: string; desc: string; icon: typeof CreditCard; bgColor: string
+}> = {
+  wechat: {
+    label: '微信支付', desc: '推荐使用微信扫码支付', icon: ChatDotRound,
     bgColor: 'linear-gradient(135deg, #36D399, #36D399)',
   },
-  {
-    value: 'alipay',
-    label: '支付宝',
-    desc: '支持花呗分期付款',
-    icon: CreditCard,
+  alipay: {
+    label: '支付宝', desc: '支持花呗分期付款', icon: CreditCard,
     bgColor: 'linear-gradient(135deg, #165DFF, #0E42D2)',
   },
-  {
-    value: 'balance',
-    label: '余额支付',
-    desc: '账户余额: ¥0.00',
-    icon: Wallet,
+  balance: {
+    label: '模拟支付', desc: '演示环境，模拟一次付款', icon: Wallet,
     bgColor: 'linear-gradient(135deg, #FF7D00, #E06800)',
   },
-]
+}
+
+const payMethods = ref<Array<{
+  value: string; label: string; desc: string; icon: typeof CreditCard; bgColor: string
+}>>([])
 
 function selectMethod(value: string) {
   selectedMethod.value = value
   payMethod.value = value
+}
+
+/** 加载后端当前启用的支付方式，避免展示不可用渠道导致下单失败 */
+async function loadPayConfig() {
+  try {
+    const res = await getPayConfig()
+    if (res.data) {
+      isDemo.value = !!res.data.demo
+      const methods = res.data.methods?.length ? res.data.methods : ['wechat']
+      payMethods.value = methods
+        .filter(m => PAY_METHOD_META[m])
+        .map(m => ({ value: m, ...PAY_METHOD_META[m] }))
+      // 默认选中第一个可用方式
+      if (payMethods.value.length) {
+        payMethod.value = payMethods.value[0].value
+        selectedMethod.value = payMethod.value
+      }
+    }
+  } catch {
+    // 配置接口失败：兜底展示微信（真实模式默认）
+    payMethods.value = [{ value: 'wechat', ...PAY_METHOD_META.wechat }]
+  }
 }
 
 // 订单信息：初始为空，只有接口返回真实订单后才可支付
@@ -248,89 +279,117 @@ function formatMoney(cents: number) {
 }
 
 onMounted(async () => {
-  // 1. 优先：路由参数携带 orderId（如从订单列表跳转 /pay/123），调用 getOrderDetail 获取订单详情
+  // 并行加载支付配置（决定展示哪些支付方式）
+  loadPayConfig()
+
+  // 1. 优先：路由参数 orderId（/pay/123），直接查订单详情
   const paramOrderId = Number(route.params.orderId)
   if (paramOrderId) {
     await loadOrderDetail(paramOrderId)
     return
   }
 
-  // 2. 兼容 query.orderId 场景
+  // 2. 兼容 query.orderId
   const queryOrderId = Number(route.query.orderId)
   if (queryOrderId) {
     await loadOrderDetail(queryOrderId)
     return
   }
 
-  // 3. 创建新订单：有完整商品参数时调用 createOrder
-  const { productType, productId, productName, amount } = route.query
-  if (productType && productId && productName && amount) {
+  // 3. 兼容 query.orderNo（订单列表旧入口：先按 orderNo 找 id）
+  const orderNo = route.query.orderNo as string
+  if (orderNo) {
+    await loadOrderByNo(orderNo)
+    return
+  }
+
+  // 4. 创建新订单：会员页传 productType + productId（价格后端查库，无需前端传金额）
+  const { productType, productId, type } = route.query
+  const resolvedType = (productType || type) as string
+  if (resolvedType && productId) {
     try {
       const res = await createOrder({
-        productType: productType as string,
+        productType: resolvedType,
         productId: Number(productId),
       })
       if (res.data) {
-        order.value = {
-          id: res.data.id,
-          orderNo: res.data.orderNo,
-          productName: res.data.productName || (productName as string),
-          payAmount: res.data.payAmount || Number(amount),
-        }
+        setOrder(res.data)
         orderReady.value = true
       } else {
-        orderError.value = '订单信息获取失败'
+        orderError.value = '订单创建失败'
       }
     } catch {
-      // 创建失败：保持空态，由模板显示「订单信息获取失败」
-      orderError.value = '订单信息获取失败'
+      orderError.value = '订单创建失败'
     }
   }
-  // 4. 无任何订单参数：保持空态，由模板显示「订单不存在」
+  // 5. 无任何订单参数：保持空态
 })
+
+/** 统一订单字段映射 */
+function setOrder(data: { id: number; orderNo: string; productName: string; payAmount: number }) {
+  order.value = {
+    id: data.id,
+    orderNo: data.orderNo,
+    productName: data.productName,
+    payAmount: data.payAmount,
+  }
+  orderReady.value = true
+}
 
 /** 加载订单详情：失败或返回空时保持空态，不回退任何虚构订单 */
 async function loadOrderDetail(id: number) {
   try {
     const res = await getOrderDetail(id)
-    if (res.data) {
-      order.value = {
-        id: res.data.id,
-        orderNo: res.data.orderNo,
-        productName: res.data.productName,
-        payAmount: res.data.payAmount,
-      }
-      orderReady.value = true
-    } else {
-      orderError.value = '订单信息获取失败'
-    }
+    if (res.data) setOrder(res.data)
+    else orderError.value = '订单信息获取失败'
   } catch {
-    // 接口失败或返回空：保持空态，由模板显示「订单信息获取失败」
+    orderError.value = '订单信息获取失败'
+  }
+}
+
+/** 按订单号反查（兼容订单列表旧入口 ?orderNo=xxx） */
+async function loadOrderByNo(orderNo: string) {
+  try {
+    const res = await getOrderList({ pageNum: 1, pageSize: 50 })
+    const found = res.data?.list?.find((o: any) => o.orderNo === orderNo)
+    if (found) setOrder(found as any)
+    else orderError.value = '订单不存在'
+  } catch {
     orderError.value = '订单信息获取失败'
   }
 }
 
 async function handlePay() {
-  if (payMethod.value === 'balance') {
-    paying.value = true
-    try {
-      // 尝试调用真实支付API
-      await payOrder({
-        orderId: order.value.id || 0,
-        payMethod: payMethod.value as 'wechat' | 'alipay' | 'balance',
-      })
-      handlePaySuccess()
-    } catch {
-      ElMessage.error('支付失败，请稍后重试')
-    } finally {
-      paying.value = false
+  if (!orderReady.value || !order.value.id) {
+    ElMessage.error('订单不可用，无法支付')
+    return
+  }
+  paying.value = true
+  try {
+    // 所有渠道（含演示）都必须经后端下单拿凭证，前端绝不自行标记成功
+    const res = await payOrder({
+      orderId: order.value.id,
+      payMethod: payMethod.value as 'wechat' | 'alipay' | 'balance',
+    })
+    if (!res.data) throw new Error('no credential')
+    payResult.value = {
+      qrCode: res.data.qrCode || '',
+      orderNo: res.data.orderNo || order.value.orderNo,
+      orderId: res.data.orderId || String(order.value.id),
+      demo: res.data.demo || 'false',
     }
-  } else {
+    isDemo.value = res.data.demo === 'true'
     showQR.value = true
+  } catch {
+    ElMessage.error('发起支付失败，请稍后重试')
+  } finally {
+    paying.value = false
   }
 }
 
+/** 支付成功回调：由 QRCodePay 轮询到真实 paid 状态后触发 */
 function handlePaySuccess() {
+  showQR.value = false
   ElMessage.success('支付成功')
   router.push('/order')
 }

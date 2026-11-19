@@ -13,6 +13,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
+
 /**
  * 文件服务实现类（基于火山引擎 TOS）
  * <p>
@@ -36,6 +38,9 @@ public class TosServiceImpl extends ServiceImpl<FileRecordMapper, FileRecord> im
         if (file.isEmpty()) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "上传文件不能为空");
         }
+
+        validateBizType(bizType);   // P1-19：防路径穿越
+        validateExtension(file);    // P1-19：防上传可执行文件
 
         String folder = bizType + "/";
         String objectKey = tosUtil.upload(file, folder);
@@ -65,6 +70,15 @@ public class TosServiceImpl extends ServiceImpl<FileRecordMapper, FileRecord> im
             throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
         }
         return tosUtil.getPresignedUrl(record.getFilePath(), record.getBucket(), 3600);
+    }
+
+    @Override
+    public InputStream download(Long fileId) {
+        FileRecord record = getById(fileId);
+        if (record == null) {
+            throw new BusinessException(ErrorCode.FILE_NOT_FOUND);
+        }
+        return tosUtil.download(record.getFilePath(), record.getBucket());
     }
 
     @Override

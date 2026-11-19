@@ -948,6 +948,7 @@ CREATE TABLE `pay_order` (
     `pay_time`    DATETIME      DEFAULT NULL            COMMENT '支付时间',
     `expire_time` DATETIME      DEFAULT NULL            COMMENT '过期时间',
     `trade_no`    VARCHAR(128)  DEFAULT NULL            COMMENT '第三方交易号',
+    `coupon_id`   BIGINT        DEFAULT NULL            COMMENT '使用的优惠券ID（付费核销用）',
     `create_time` DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `deleted`     INT           NOT NULL DEFAULT 0      COMMENT '逻辑删除标识（0-未删除，1-已删除）',
@@ -1381,3 +1382,20 @@ INSERT INTO `sys_config` (`id`, `config_key`, `config_value`, `description`, `co
 (3, 'default_avatar', '/static/default-avatar.png', '默认头像地址', 'user', NOW(), NOW(), 0),
 (4, 'register_enabled', 'true', '是否开启注册', 'system', NOW(), NOW(), 0),
 (5, 'upload_max_size', '104857600', '上传文件最大大小（字节）', 'file', NOW(), NOW(), 0);
+
+-- ============================================================================
+-- user_membership - 用户会员权益表（P0-04：付费开通会员后生效）
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS `user_membership` (
+    `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    `user_id`     BIGINT       NOT NULL                COMMENT '用户ID',
+    `plan_id`     BIGINT       NOT NULL                COMMENT '会员套餐ID',
+    `order_id`    BIGINT       DEFAULT NULL            COMMENT '开通订单ID',
+    `start_time`  DATETIME     NOT NULL                COMMENT '生效时间',
+    `expire_time` DATETIME     NOT NULL                COMMENT '到期时间',
+    `status`      INT          NOT NULL DEFAULT 1      COMMENT '状态（0-已过期，1-生效中）',
+    `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (`id`),
+    UNIQUE INDEX `uk_user_plan` (`user_id`, `plan_id`),
+    INDEX `idx_expire` (`expire_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户会员权益表';

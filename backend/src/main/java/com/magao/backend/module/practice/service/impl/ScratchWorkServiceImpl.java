@@ -158,13 +158,15 @@ public class ScratchWorkServiceImpl implements ScratchWorkService {
     }
 
     @Override
-    public String exportWork(Long workId) {
+    public String exportWork(Long workId, Long userId) {
         ScratchWork work = scratchWorkMapper.selectById(workId);
         if (work == null) {
             throw new BusinessException("作品不存在");
         }
-
-        // 生成临时访问URL（有效期1小时）
+        // P1-09：私有作品仅本人可导出；公开作品任何人可导出
+        if (!java.util.Objects.equals(work.getUserId(), userId) && !Integer.valueOf(1).equals(work.getIsPublic())) {
+            throw new BusinessException("无权导出该作品");
+        }
         return tosUtil.getPresignedUrl(work.getSb3FileKey(), SCRATCH_BUCKET, 3600);
     }
 }

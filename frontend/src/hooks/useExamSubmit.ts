@@ -5,7 +5,6 @@
  */
 import { useExamStore } from '@/stores/exam'
 import { saveExamAnswer, submitExam } from '@/api/exam'
-import { getExamQuestions } from '@/mock/examQuestions'
 import { addToWrongBook, removeFromWrongBook } from '@/utils/wrongBook'
 import { ElMessageBox } from 'element-plus'
 
@@ -14,11 +13,13 @@ export function useExamSubmit() {
 
   /**
    * 交卷后同步错题本：答错客观题入本，答对（曾错过）的题移除
+   *
+   * 仅「错题重练」模式（overrideQuestions 来自错题本、含标准答案）可前端比对；
+   * 正式考试题目来自后端（不含答案），对错由后端判分，前端不再自行比对。
    */
   function syncWrongBook(examId: number) {
-    const questions = examStore.overrideQuestions?.length
-      ? examStore.overrideQuestions
-      : getExamQuestions(examId)
+    const questions = examStore.overrideQuestions || []
+    if (questions.length === 0) return
     const submitted = examStore.submittedAnswers
     const wrongQuestions: any[] = []
     const correctIds: number[] = []

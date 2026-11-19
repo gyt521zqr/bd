@@ -8,6 +8,8 @@ import com.magao.backend.common.dto.PageDTO;
 import com.magao.backend.common.exception.BusinessException;
 import com.magao.backend.common.result.ErrorCode;
 import com.magao.backend.common.util.CryptoUtil;
+import com.magao.backend.common.util.MaskUtil;
+import com.magao.backend.common.util.PasswordUtil;
 import com.magao.backend.module.user.entity.User;
 import com.magao.backend.module.user.mapper.UserMapper;
 import com.magao.backend.module.user.service.UserService;
@@ -42,7 +44,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (StringUtils.hasText(user.getPhone()) && getByPhone(user.getPhone()) != null) {
             throw new BusinessException(ErrorCode.PHONE_EXISTS);
         }
-        user.setPassword(CryptoUtil.md5WithSalt(user.getPassword(), PASSWORD_SALT));
+        user.setPassword(PasswordUtil.encode(user.getPassword())); // P0-18：BCrypt 随机盐
         user.setStatus(1);
         save(user);
         log.info("用户注册成功：userId={}, username={}", user.getId(), user.getUsername());
@@ -63,9 +65,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     public void changePassword(Long userId, String oldPassword, String newPassword) {
         User user = getById(userId);
         if (user == null) { throw new BusinessException(ErrorCode.USER_NOT_FOUND); }
-        String oldMd5 = CryptoUtil.md5WithSalt(oldPassword, PASSWORD_SALT);
-        if (!oldMd5.equals(user.getPassword())) { throw new BusinessException(ErrorCode.OLD_PASSWORD_ERROR); }
-        user.setPassword(CryptoUtil.md5WithSalt(newPassword, PASSWORD_SALT));
+        if (!PasswordUtil.matches(oldPassword, user.getPassword())) {
+            throw new BusinessException(ErrorCode.OLD_PASSWORD_ERROR);
+        }
+        user.setPassword(PasswordUtil.encode(newPassword));
         updateById(user);
         log.info("用户修改密码成功：userId={}", userId);
     }
@@ -92,7 +95,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         LambdaUpdateWrapper<User> uw = new LambdaUpdateWrapper<>();
         uw.eq(User::getId, userId).set(User::getParentPhone, parentPhone);
         update(uw);
-        log.info("绑定家长手机号：userId={}, parentPhone={}", userId, parentPhone);
+        log.info("绑定家长手机号：userId={}, parentPhone={}", userId, MaskUtil.maskPhone(parentPhone));
     }
 
     @Override
@@ -108,7 +111,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     public void resetPassword(Long userId, String password) {
         User user = getById(userId);
         if (user == null) { throw new BusinessException(ErrorCode.USER_NOT_FOUND); }
-        user.setPassword(CryptoUtil.md5WithSalt(password, PASSWORD_SALT));
+        user.setPassword(PasswordUtil.encode(password));
         updateById(user);
         log.info("用户密码重置：userId={}", userId);
     }
@@ -128,6 +131,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             UserVO vo = new UserVO();
             BeanUtils.copyProperties(user, vo);
             vo.setPassword(null);
+            // P1-21：手机号/姓名脱敏后返回
+            vo.setPhone(MaskUtil.maskPhone(user.getPhone()));
+            vo.setRealName(MaskUtil.maskName(user.getRealName()));
             return vo;
         }).collect(java.util.stream.Collectors.toList());
         voPage.setRecords(voList);

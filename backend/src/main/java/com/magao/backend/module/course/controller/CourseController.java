@@ -13,8 +13,11 @@ import com.magao.backend.common.result.Result;
 import com.magao.backend.module.cms.entity.Category;
 import com.magao.backend.module.cms.service.CategoryService;
 import com.magao.backend.module.course.entity.Course;
+import com.magao.backend.module.course.entity.CoursePurchase;
 import com.magao.backend.module.course.entity.CourseVideo;
 import com.magao.backend.module.course.entity.VideoProgress;
+import com.magao.backend.module.course.mapper.CourseMapper;
+import com.magao.backend.module.course.mapper.CoursePurchaseMapper;
 import com.magao.backend.module.course.mapper.CourseVideoMapper;
 import com.magao.backend.module.course.mapper.VideoProgressMapper;
 import com.magao.backend.module.course.service.CourseService;
@@ -50,6 +53,32 @@ public class CourseController extends BaseController {
     private final CategoryService categoryService;
     private final CourseVideoMapper courseVideoMapper;
     private final VideoProgressMapper videoProgressMapper;
+    private final CourseMapper courseMapper;
+    private final CoursePurchaseMapper coursePurchaseMapper;
+
+    /**
+     * P0-08：付费课程播放/进度校验。免费课程（price=0 或 null）放行；
+     * 付费课程必须存在有效的购买记录（未过期）才能访问，杜绝白嫖。
+     */
+    private void assertCourseAccessible(Long userId, Long courseId) {
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) {
+            throw new BusinessException(ErrorCode.DATA_NOT_FOUND, "课程不存在");
+        }
+        if (course.getPrice() == null || course.getPrice().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            return; // 免费课程
+        }
+        LambdaQueryWrapper<CoursePurchase> qw = new LambdaQueryWrapper<>();
+        qw.eq(CoursePurchase::getUserId, userId)
+          .eq(CoursePurchase::getCourseId, courseId);
+        CoursePurchase purchase = coursePurchaseMapper.selectOne(qw);
+        if (purchase == null) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "请先购买该课程后再学习");
+        }
+        if (purchase.getExpireTime() != null && LocalDateTime.now().isAfter(purchase.getExpireTime())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "课程学习权限已过期");
+        }
+    }
 
     @Operation(summary = "课程列表")
     @GetMapping("/list")
@@ -143,6 +172,11 @@ public class CourseController extends BaseController {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "视频ID不能为空");
         }
         Long userId = getCurrentUserId();
+        // P0-08：记录付费课程进度前先校验购买
+        CourseVideo video = courseVideoMapper.selectById(req.getVideoId());
+        if (video != null && video.getCourseId() != null) {
+            assertCourseAccessible(userId, video.getCourseId());
+        }
         LambdaQueryWrapper<VideoProgress> qw = new LambdaQueryWrapper<>();
         qw.eq(VideoProgress::getUserId, userId).eq(VideoProgress::getVideoId, req.getVideoId());
         VideoProgress existing = videoProgressMapper.selectOne(qw);
@@ -171,8 +205,11 @@ public class CourseController extends BaseController {
         if (video == null) {
             throw new BusinessException(ErrorCode.DATA_NOT_FOUND);
         }
-        // 直接返回视频地址；course_video.videoUrl 可为 OSS/本地直链。
-        // token 预留给后续防盗链签名；当前环境未启用签名，返回空串。
+        // P0-08：付费课程必须先购买才能拿播放地址
+        Long userId = getCurrentUserId();
+        if (video.getCourseId() != null) {
+            assertCourseAccessible(userId, video.getCourseId());
+        }
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("url", video.getVideoUrl());
         data.put("token", "");

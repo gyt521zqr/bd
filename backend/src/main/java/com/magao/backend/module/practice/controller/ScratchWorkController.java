@@ -89,6 +89,6 @@ public class ScratchWorkController extends BaseController {
     @Operation(summary = "导出作品（获取临时下载链接）")
     @GetMapping("/{id}/export")
     public Result<String> exportWork(@PathVariable Long id) {
-        return Result.success(scratchWorkService.exportWork(id));
+        return Result.success(scratchWorkService.exportWork(id, getCurrentUserId()));
     }
 }

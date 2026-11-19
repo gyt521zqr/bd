@@ -104,7 +104,7 @@ function formatMoney(cents: number) {
 
 function handleBuy(plan: any) {
   if (plan.price > 0) {
-    router.push(`/pay?productId=${plan.id}&type=membership`)
+    router.push(`/pay?productType=membership&productId=${plan.id}`)
   }
 }
 </script>

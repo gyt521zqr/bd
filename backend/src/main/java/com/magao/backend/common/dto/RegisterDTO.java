@@ -1,5 +1,6 @@
 package com.magao.backend.common.dto;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -33,4 +34,12 @@ public class RegisterDTO {
     /** 密码 */
     @Size(min = 6, max = 100, message = "密码长度为6-100个字符")
     private String password;
+
+    /** 是否已阅读并同意《用户协议》与《隐私政策》（合规必需 P0-19） */
+    @AssertTrue(message = "请先阅读并同意用户协议与隐私政策")
+    private boolean agreed;
+
+    /** 是否已取得监护人同意并阅读《儿童个人信息保护规则》（合规必需 P0-19） */
+    @AssertTrue(message = "请确认已取得监护人同意")
+    private boolean guardianConsent;
 }

@@ -2,7 +2,7 @@
  * 错题本工具（localStorage 持久化）
  * 交卷时自动收录答错的客观题，答对后自动移除，可跨会话保留。
  */
-import type { ExamQuestion } from '@/mock/examQuestions'
+import type { ExamQuestion } from '@/types'
 
 /** 错题本条目 */
 export interface WrongBookItem {

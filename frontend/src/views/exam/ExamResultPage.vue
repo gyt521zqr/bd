@@ -41,16 +41,17 @@
 <script setup lang="ts">
 /**
  * ExamResultPage - 考试成绩详情页
- * 展示考试成绩、答案对比、解析
- * 答题详情与成绩由本地题库（业务依赖）和交卷作答快照计算得出，不注入虚构数据
+ * 正式考试：成绩与逐题解析来自后端（getExamResult + getExamResultDetail），不再本地假判分
+ * 错题重练：无后端记录，用错题集（含标准答案）本地判分
  */
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { DocumentChecked, ArrowLeft, EditPen, RefreshRight, Notebook } from '@element-plus/icons-vue'
-import { getExamQuestions, getExamMeta, calcTotalScore } from '@/mock/examQuestions'
+import { getExamResult, getExamResultDetail } from '@/api/exam'
 import { useExamStore } from '@/stores/exam'
 import ExamResult from '@/components/exam/ExamResult.vue'
+import type { ExamRecord, ExamResultDetail } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -58,17 +59,18 @@ const examStore = useExamStore()
 const loading = ref(false)
 
 const examId = computed(() => Number(route.params.examId))
-const questions = computed(() => {
-  // 错题重练结果：用错题集判分
-  if (examStore.overrideQuestions && examStore.overrideQuestions.length > 0) {
-    return examStore.overrideQuestions
-  }
-  return getExamQuestions(examId.value)
-})
+
+// 后端返回的考试记录与逐题答题详情（正式考试）
+const backendRecord = ref<ExamRecord | null>(null)
+const backendDetails = ref<ExamResultDetail[]>([])
+
+// 错题重练模式：有错题集（含标准答案），无后端记录，本地判分
+const isWrongMode = computed(() => !!(examStore.overrideQuestions && examStore.overrideQuestions.length > 0))
+const wrongQuestions = computed(() => examStore.overrideQuestions || [])
 const userAnswers = computed(() => examStore.submittedAnswers)
 
 /** 答案显示格式化（判断题 true/false → 正确/错误，选择题字母 → 字母（选项内容）） */
-function answerText(q: { type: string; answer?: string; options?: string[] }, raw?: string): string {
+function answerText(q: { type?: string; answer?: string; options?: string[]; correctAnswer?: string }, raw?: string): string {
   if (!raw) return '未作答'
   if (q.type === 'judge') return raw === 'true' ? '正确' : '错误'
   if (q.type === 'choice') {
@@ -79,9 +81,9 @@ function answerText(q: { type: string; answer?: string; options?: string[] }, ra
   return raw
 }
 
-/** 构造答题详情（题干 + 用户答案 + 正确答案 + 解析 + 得分） */
-const details = computed(() =>
-  questions.value.map((q) => {
+/** 构造答题详情（错题重练本地判分） */
+function buildLocalDetails() {
+  return wrongQuestions.value.map((q) => {
     const userRaw = userAnswers.value.get(q.id) || ''
     const isCorrect = !!q.answer && userRaw === q.answer
     return {
@@ -97,25 +99,46 @@ const details = computed(() =>
       answer: q.answer || '',
     }
   })
-)
+}
 
-const totalScore = computed(() => calcTotalScore(questions.value))
-const myScore = computed(() => details.value.reduce((s, d) => s + d.score, 0))
+/** 将后端答题详情映射为组件期望结构 */
+function buildBackendDetails() {
+  return backendDetails.value.map((d) => ({
+    questionId: d.questionId,
+    title: d.title,
+    userAnswer: answerText(d, d.userAnswer),
+    correctAnswer: answerText(d, d.correctAnswer),
+    score: d.score || 0,
+    maxScore: d.maxScore || 0,
+    analysis: d.analysis || '',
+    type: d.type,
+    options: d.options || [],
+    answer: d.correctAnswer || '',
+  }))
+}
+
+const details = computed(() => (isWrongMode.value ? buildLocalDetails() : buildBackendDetails()))
+
+const totalScore = computed(() => {
+  if (isWrongMode.value) return wrongQuestions.value.reduce((s, q) => s + (q.score || 0), 0)
+  return details.value.reduce((s, d) => s + d.maxScore, 0)
+})
+const myScore = computed(() => {
+  if (isWrongMode.value) return details.value.reduce((s, d) => s + d.score, 0)
+  return backendRecord.value?.score ?? 0
+})
 const passScore = computed(() => {
-  // 错题重练：按错题集总分 60% 计算及格分
-  if (examStore.overrideQuestions && examStore.overrideQuestions.length > 0) {
-    return Math.round(totalScore.value * 0.6)
-  }
-  return getExamMeta(examId.value).passScore
+  if (isWrongMode.value) return Math.round(totalScore.value * 0.6)
+  return Math.round(totalScore.value * 0.6)
 })
 
 const record = computed(() => ({
-  id: String(examId.value),
-  examTitle: examStore.overrideTitle || getExamMeta(examId.value).title,
+  id: backendRecord.value?.id ?? String(examId.value),
+  examTitle: examStore.overrideTitle || backendRecord.value?.examTitle || '在线考试',
   score: myScore.value,
   totalScore: totalScore.value,
-  passed: myScore.value >= passScore.value,
-  submitTime: '刚刚交卷',
+  passed: isWrongMode.value ? myScore.value >= passScore.value : (backendRecord.value?.isPassed === 1),
+  submitTime: backendRecord.value?.submitTime || '刚刚交卷',
   duration: '--',
 }))
 
@@ -124,7 +147,7 @@ const backPath = computed(() => (examId.value >= 201 ? '/question-bank' : '/exam
 
 /** 收集错题（仅客观题，有标准答案的） */
 function collectWrongQuestions() {
-  return questions.value.filter((q) => {
+  return wrongQuestions.value.filter((q) => {
     const userRaw = userAnswers.value.get(q.id) || ''
     return !!q.answer && userRaw !== q.answer
   })
@@ -149,8 +172,22 @@ function handleWrongRetry() {
   router.push(`/exam-taking/${examId.value}?mode=wrong`)
 }
 
-onMounted(() => {
+onMounted(async () => {
   loading.value = false
+  // 正式考试：从后端拉取成绩与逐题解析
+  if (!isWrongMode.value && examStore.recordId) {
+    try {
+      const [recordRes, detailRes] = await Promise.all([
+        getExamResult(examStore.recordId),
+        getExamResultDetail(examStore.recordId),
+      ])
+      if (recordRes?.data) backendRecord.value = recordRes.data
+      if (detailRes?.data && Array.isArray(detailRes.data)) backendDetails.value = detailRes.data
+    } catch (e) {
+      console.warn('[ExamResultPage] 成绩加载失败', e)
+      ElMessage.error('成绩加载失败，请稍后重试')
+    }
+  }
 })
 </script>
 

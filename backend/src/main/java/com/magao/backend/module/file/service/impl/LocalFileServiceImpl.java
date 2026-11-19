@@ -30,6 +30,8 @@ public class LocalFileServiceImpl extends ServiceImpl<FileRecordMapper, FileReco
         if (file.isEmpty()) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "上传文件不能为空");
         }
+        validateBizType(bizType);   // P1-19：防路径穿越
+        validateExtension(file);    // P1-19：防上传可执行文件
         try {
             String folder = bizType + "/";
             String originalName = file.getOriginalFilename();

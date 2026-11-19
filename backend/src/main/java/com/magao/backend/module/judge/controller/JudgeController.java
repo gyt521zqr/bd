@@ -137,6 +137,11 @@ public class JudgeController extends BaseController {
         if (record == null) {
             return Result.fail("判题记录不存在");
         }
+        // P0-14：判题结果只能本人查看
+        Long currentId = getCurrentUserId();
+        if (currentId == null || !currentId.equals(record.getUserId())) {
+            return Result.fail("无权查看该判题记录");
+        }
 
         JudgeResultDTO result = JudgeResultDTO.builder()
                 .recordId(record.getId())

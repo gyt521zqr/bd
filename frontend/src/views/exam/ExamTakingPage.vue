@@ -250,14 +250,8 @@ import BaseEditor from '@/components/editor/BaseEditor.vue'
 import type { EditorLang, EditorConfig } from '@/types/editor'
 import { LANG_LABELS } from '@/types/editor'
 import { enterExam, fetchPaperQuestions } from '@/api/exam'
-import {
-  getExamQuestions,
-  groupQuestionsByType,
-  calcTotalScore,
-  getExamMeta,
-  QUESTION_TYPE_LABEL,
-  type QuestionType,
-} from '@/mock/examQuestions'
+import { groupQuestionsByType, calcTotalScore, QUESTION_TYPE_LABEL } from '@/utils/exam'
+import type { QuestionType } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -280,8 +274,7 @@ const formattedCountdown = computed(() => {
 })
 
 // ========== 题目数据 ==========
-// 远程拉取的真实题目（通过 enterExam / fetchPaperQuestions 获取）；为空时使用本地题库
-// 本地题库（@/mock/examQuestions）是考试与计分的业务依赖，不是虚构降级数据
+// 题目只来自后端（fetchPaperQuestions）或错题重练题集，不再回退本地假题库
 const remoteQuestions = ref<any[]>([])
 
 /** 是否为错题重练模式（通过 ?mode=wrong 标记） */
@@ -292,11 +285,7 @@ const questions = computed(() => {
   if (isWrongMode.value && examStore.overrideQuestions && examStore.overrideQuestions.length > 0) {
     return examStore.overrideQuestions
   }
-  // 优先使用真实接口返回的题目
-  if (remoteQuestions.value.length > 0) {
-    return remoteQuestions.value
-  }
-  return getExamQuestions(Number(route.params.examId))
+  return remoteQuestions.value
 })
 
 const currentIndex = ref(0)
@@ -314,7 +303,13 @@ const examMeta = computed(() => {
       passScore: 60,
     }
   }
-  return getExamMeta(Number(route.params.examId))
+  // 正常模式：优先取当前考试信息（进入前已设置），否则用通用默认
+  return {
+    id: Number(route.params.examId),
+    title: examStore.currentExam?.title || '在线考试',
+    duration: examStore.currentExam?.duration || 60,
+    passScore: 60,
+  }
 })
 const totalScore = computed(() => calcTotalScore(questions.value))
 const passScore = computed(() => Math.round(totalScore.value * 0.6))
@@ -520,7 +515,7 @@ onMounted(async () => {
   // 启动 3 分钟自动保存
   autosaveTimer = setInterval(autosave, 180000)
 
-  // 获取真实试卷题目，失败时明确提示，由本地题库（业务依赖）继续提供题目（错题重练模式跳过）
+  // 获取真实试卷题目（错题重练模式跳过）
   if (!isWrongMode.value) {
     const examId = Number(route.params.examId)
     if (examId) {
@@ -530,24 +525,24 @@ onMounted(async () => {
         if (res?.data?.id) {
           examStore.setRecordId(res.data.id)
         }
-        // 后端若返回题目则使用（当前题目以本地题源为主）
+        // 后端返回的试卷ID（examId 与 paperId 是两个独立主键，不能混用）
+        const paperId = (res?.data as any)?.paperId
+        // 后端若直接返回题目则使用
         const questions = (res?.data as any)?.questions
         if (Array.isArray(questions) && questions.length > 0) {
           remoteQuestions.value = questions
+        } else if (paperId) {
+          // 用试卷ID拉取题目（而非考试ID）
+          const qs = await fetchPaperQuestions(paperId)
+          if (Array.isArray(qs)) {
+            remoteQuestions.value = qs
+          }
+        } else {
+          ElMessage.warning('该考试未关联试卷，暂无题目')
         }
       } catch (e) {
         console.warn('[ExamTaking] 获取试卷题目失败', e)
-        ElMessage.error('试卷题目获取失败，已使用本地题库继续作答')
-      }
-      // 题库单源（P1b）：优先从后端拉取真实题目，失败时由本地题库（业务依赖）继续提供题目
-      try {
-        const qs = await fetchPaperQuestions(examId)
-        if (Array.isArray(qs) && qs.length > 0) {
-          remoteQuestions.value = qs
-        }
-      } catch (e) {
-        console.warn('[ExamTaking] 在线题库暂不可用', e)
-        ElMessage.warning('在线题库暂不可用，已使用本地题库继续作答')
+        ElMessage.error('试卷题目获取失败，请稍后重试')
       }
     }
   }

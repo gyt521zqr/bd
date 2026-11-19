@@ -4,7 +4,7 @@
 export type { Result, PageQuery, PageResult } from './api'
 export type { UserRole, UserInfo, LoginParams, RegisterParams, LoginResult } from './user'
 export type { CourseItem, CourseDetail, Video, Course } from './course'
-export type { ExamItem, ExamRecord, ExamAnswer, GradingTask, Exam, Question, ExamAnswerDetail, ExamStatus, QuestionType } from './exam'
+export type { ExamItem, ExamRecord, ExamAnswer, GradingTask, Exam, Question, ExamAnswerDetail, ExamStatus, QuestionType, ExamQuestion, ExamPaper, ExamMeta, ExamResultDetail } from './exam'
 export type { OrderItem, PayForm, Order, OrderStatus, PayMethod, Coupon, CouponType, MembershipPlan } from './payment'
 
 /** 兼容别名 */

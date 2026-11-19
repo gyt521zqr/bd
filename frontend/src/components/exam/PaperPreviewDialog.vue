@@ -107,14 +107,19 @@
  */
 import { ref, computed, watch } from 'vue'
 import { CircleCheckFilled } from '@element-plus/icons-vue'
-import { getExamQuestions, groupQuestionsByType, calcTotalScore, getExamMeta } from '@/mock/examQuestions'
+import { groupQuestionsByType, calcTotalScore } from '@/utils/exam'
 import { fetchPaperQuestions } from '@/api/exam'
 import { LANG_LABELS } from '@/types/editor'
 import type { EditorLang } from '@/types/editor'
+import type { ExamQuestion } from '@/types'
 
 const props = defineProps<{
   modelValue: boolean
   paperId: number
+  /** 试卷标题（调用方从后端试卷列表传入） */
+  title?: string
+  /** 考试时长（分钟，无则隐藏） */
+  duration?: number
 }>()
 
 const emit = defineEmits<{
@@ -124,12 +129,15 @@ const emit = defineEmits<{
 
 const showAnswer = ref(false)
 
-// 题库单源（P1b）：先以本地题源渲染，打开时优先从后端拉取真实题目
-const questions = ref(getExamQuestions(props.paperId))
+// 题库单源：仅从后端拉取真实题目，初始为空（不再预置本地假题）
+const questions = ref<ExamQuestion[]>([])
 const groups = computed(() => groupQuestionsByType(questions.value))
 const totalScore = computed(() => calcTotalScore(questions.value))
 const passScore = computed(() => Math.round(totalScore.value * 0.6))
-const meta = computed(() => getExamMeta(props.paperId))
+const meta = computed(() => ({
+  title: props.title || '试卷',
+  duration: props.duration || 0,
+}))
 
 // 打开时重置「显示答案」开关
 watch(
@@ -139,14 +147,19 @@ watch(
   }
 )
 
-// 打开/切换试卷时，优先从后端拉取真实题目（失败保留本地题源）
+// 打开/切换试卷时，从后端拉取真实题目（失败保持空态，不再回退假题）
 watch(
   () => [props.modelValue, props.paperId] as const,
   async ([open]) => {
     if (open) {
       showAnswer.value = false
-      const qs = await fetchPaperQuestions(props.paperId)
-      if (Array.isArray(qs) && qs.length > 0) questions.value = qs
+      questions.value = []
+      try {
+        const qs = await fetchPaperQuestions(props.paperId)
+        if (Array.isArray(qs)) questions.value = qs
+      } catch (e) {
+        console.warn('[PaperPreviewDialog] 试卷题目加载失败', e)
+      }
     }
   },
   { immediate: true }

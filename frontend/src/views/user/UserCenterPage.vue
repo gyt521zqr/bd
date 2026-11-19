@@ -231,6 +231,7 @@ import { ElMessage } from 'element-plus'
 import { getUserInfo, updateUserInfo } from '@/api/user'
 import { getExamRecords } from '@/api/exam'
 import { getOrderList } from '@/api/payment'
+import type { ExamRecord } from '@/types'
 
 // 响应式检测
 const isMobile = ref(window.innerWidth <= 768)
@@ -329,12 +330,15 @@ async function loadExamRecords() {
     const res = await getExamRecords({ pageNum: 1, pageSize: 20 })
     if (res.data) {
       // 接口成功：使用返回列表（即使为空也展示空态）
-      myContests.value = (res.data.list || []).map((record: any) => ({
+      myContests.value = (res.data.list || []).map((record: ExamRecord) => ({
         title: record.examTitle || `考试 #${record.examId}`,
-        status: record.passed ? '已结束' : '已结束',
-        statusType: record.passed ? 'success' as const : 'info' as const,
+        status: '已结束',
+        statusType: (record.isPassed === 1 ? 'success' : 'info') as 'success' | 'info',
         time: record.submitTime || '',
-        result: record.passed ? `通过 (${record.score}/${record.totalScore}分)` : `未通过 (${record.score}/${record.totalScore}分)`,
+        result:
+          record.isPassed === 1
+            ? `通过 (${record.score ?? 0}/${record.totalScore ?? 0}分)`
+            : `未通过 (${record.score ?? 0}/${record.totalScore ?? 0}分)`,
       }))
     }
   } catch {

@@ -50,12 +50,14 @@ public class MessageServiceImpl implements MessageService {
 
     @Override
     public void markRead(Long messageId, Long userId) {
-        Message message = messageMapper.selectById(messageId);
-        if (message != null) {
-            message.setIsRead(1);
-            message.setReadTime(LocalDateTime.now());
-            messageMapper.updateById(message);
-        }
+        // P1-10：条件更新必须带 receiverId，防止标记他人消息为已读
+        com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Message> uw =
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<>();
+        uw.eq(Message::getId, messageId).eq(Message::getReceiverId, userId);
+        Message patch = new Message();
+        patch.setIsRead(1);
+        patch.setReadTime(LocalDateTime.now());
+        messageMapper.update(patch, uw);
     }
 
     @Override

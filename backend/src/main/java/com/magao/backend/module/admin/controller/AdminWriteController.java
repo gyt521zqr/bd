@@ -4,8 +4,11 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.magao.backend.common.annotation.RequireRole;
 import com.magao.backend.common.base.BaseEntity;
 import com.magao.backend.common.enums.UserRoleEnum;
+import com.magao.backend.common.exception.BusinessException;
+import com.magao.backend.common.result.ErrorCode;
 import com.magao.backend.common.result.Result;
 import com.magao.backend.common.util.CryptoUtil;
+import com.magao.backend.common.util.PasswordUtil;
 import com.magao.backend.module.cms.entity.Banner;
 import com.magao.backend.module.cms.entity.Category;
 import com.magao.backend.module.cms.entity.News;
@@ -520,20 +523,26 @@ public class AdminWriteController {
         if (d.getEmail() != null) u.setEmail(d.getEmail());
         if (d.getAvatar() != null) u.setAvatar(d.getAvatar());
         if (d.getStatus() != null) u.setStatus(d.getStatus());
-        u.setRoleType(d.getRoleType() != null ? d.getRoleType() : defaultRole);
+        // P0-12：角色一律由服务端按接口语义强制，绝不采信前端传入的 roleType，杜绝提权
+        u.setRoleType(defaultRole);
         return u;
     }
 
-    /** 新建：明文密码哈希落库；密码为空则使用默认口令 123456 哈希，保证可登录 */
+    /** 新建：必须显式提供密码，移除默认口令 123456（弱口令+可预测是重大安全事故源） */
     private void applyCreatePassword(User u, AdminUserWriteDTO d) {
-        String pwd = (d.getPassword() != null && !d.getPassword().isBlank()) ? d.getPassword() : "123456";
-        u.setPassword(CryptoUtil.md5WithSalt(pwd, PASSWORD_SALT));
+        if (d.getPassword() == null || d.getPassword().isBlank()) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "新建账号必须设置初始密码");
+        }
+        if (d.getPassword().length() < 8) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "初始密码长度不能少于8位");
+        }
+        u.setPassword(PasswordUtil.encode(d.getPassword())); // P0-18：BCrypt
     }
 
     /** 更新：仅当传入非空密码时才重算哈希，否则保持原密码不变 */
     private void applyUpdatePassword(User u, AdminUserWriteDTO d) {
         if (d.getPassword() != null && !d.getPassword().isBlank()) {
-            u.setPassword(CryptoUtil.md5WithSalt(d.getPassword(), PASSWORD_SALT));
+            u.setPassword(PasswordUtil.encode(d.getPassword()));
         }
     }
 
@@ -600,6 +609,7 @@ public class AdminWriteController {
     // ----- 后台账号 -----
     @Operation(summary = "新建后台账号")
     @PostMapping("/account/create")
+    @RequireRole({UserRoleEnum.ADMIN}) // P0-12：账号类接口仅 ADMIN 可调用，覆盖类级 TEACHER/OPERATOR 放行
     public Result<User> createAccount(@RequestBody AdminUserWriteDTO d) {
         User u = buildUser(d, "ADMIN");
         applyCreatePassword(u, d);
@@ -608,6 +618,7 @@ public class AdminWriteController {
 
     @Operation(summary = "更新后台账号")
     @PutMapping("/account/{id}")
+    @RequireRole({UserRoleEnum.ADMIN})
     public Result<User> updateAccount(@PathVariable Long id, @RequestBody AdminUserWriteDTO d) {
         User u = buildUser(d, "ADMIN");
         u.setId(id);
@@ -617,12 +628,14 @@ public class AdminWriteController {
 
     @Operation(summary = "删除后台账号")
     @DeleteMapping("/account/{id}")
+    @RequireRole({UserRoleEnum.ADMIN})
     public Result<Void> deleteAccount(@PathVariable Long id) {
         return doDelete(userMapper, id);
     }
 
     @Operation(summary = "批量删除后台账号")
     @PostMapping("/account/batch-delete")
+    @RequireRole({UserRoleEnum.ADMIN})
     public Result<Void> batchDeleteAccount(@RequestBody Map<String, List<Long>> body) {
         return doBatchDelete(userMapper, body.get("ids"));
     }

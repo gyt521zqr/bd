@@ -72,7 +72,8 @@ public interface ScratchWorkService {
      * 导出作品（获取 sb3 文件的临时访问URL）
      *
      * @param workId 作品ID
+     * @param userId 当前用户ID（归属校验，私有作品仅本人可导出）
      * @return sb3 文件临时访问URL
      */
-    String exportWork(Long workId);
+    String exportWork(Long workId, Long userId);
 }

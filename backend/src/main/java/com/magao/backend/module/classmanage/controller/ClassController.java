@@ -33,15 +33,17 @@ public class ClassController extends BaseController {
 
     @Operation(summary = "班级列表")
     @GetMapping("/list")
+    @RequireRole({UserRoleEnum.ADMIN, UserRoleEnum.TEACHER, UserRoleEnum.OPERATOR})
     public Result<List<TeachClass>> listClasses(@RequestParam(required = false) Long teacherId,
                                                 @RequestParam(required = false) Integer status) {
-        return Result.success(classService.listClasses(teacherId, status));
+        return Result.success(classService.listClasses(teacherId, status, getCurrentUserId()));
     }
 
     @Operation(summary = "班级详情")
     @GetMapping("/{id}")
+    @RequireRole({UserRoleEnum.ADMIN, UserRoleEnum.TEACHER, UserRoleEnum.OPERATOR})
     public Result<TeachClass> getDetail(@PathVariable("id") Long classId) {
-        return Result.success(classService.getDetail(classId));
+        return Result.success(classService.getDetail(classId, getCurrentUserId()));
     }
 
     @Operation(summary = "创建班级")
@@ -49,7 +51,7 @@ public class ClassController extends BaseController {
     @RequireRole({UserRoleEnum.ADMIN, UserRoleEnum.TEACHER})
     @LogOperation(module = "班级管理", type = "新增", description = "创建班级")
     public Result<TeachClass> createClass(@RequestBody TeachClass teachClass) {
-        return Result.success(classService.createClass(teachClass));
+        return Result.success(classService.createClass(teachClass, getCurrentUserId()));
     }
 
     @Operation(summary = "添加学生到班级")
@@ -58,7 +60,7 @@ public class ClassController extends BaseController {
     @LogOperation(module = "班级管理", type = "修改", description = "添加学生到班级")
     public Result<Void> addStudent(@PathVariable("classId") Long classId,
                                   @PathVariable("userId") Long userId) {
-        classService.addStudent(classId, userId);
+        classService.addStudent(classId, userId, getCurrentUserId());
         return Result.success();
     }
 
@@ -68,7 +70,7 @@ public class ClassController extends BaseController {
     @LogOperation(module = "班级管理", type = "删除", description = "从班级移除学生")
     public Result<Void> removeStudent(@PathVariable("classId") Long classId,
                                      @PathVariable("userId") Long userId) {
-        classService.removeStudent(classId, userId);
+        classService.removeStudent(classId, userId, getCurrentUserId());
         return Result.success();
     }
 }

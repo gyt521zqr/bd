@@ -69,7 +69,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             "/v3/api-docs/**",
             "/favicon.ico",
             "/error",
-            "/actuator/**"
+            "/actuator/**",
+            // 支付异步回调：支付机构不携带本站 JWT，安全性由网关验签保证（P0-02）
+            "/api/payment/notify/**"
     );
 
     /**

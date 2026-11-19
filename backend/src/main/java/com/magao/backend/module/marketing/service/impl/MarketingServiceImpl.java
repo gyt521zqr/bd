@@ -39,12 +39,34 @@ public class MarketingServiceImpl implements MarketingService {
     @Override
     public void receiveCoupon(Long userId, Long couponId) {
         Coupon coupon = couponMapper.selectById(couponId);
-        if (coupon == null) { throw new BusinessException(ErrorCode.DATA_NOT_FOUND); }
+        if (coupon == null || !Integer.valueOf(1).equals(coupon.getStatus())) {
+            throw new BusinessException(ErrorCode.DATA_NOT_FOUND, "优惠券不存在或已下架");
+        }
+        // P1-07：防重复领取——同一用户同一券只能领一次
+        Long existed = userCouponMapper.selectCount(new LambdaQueryWrapper<UserCoupon>()
+                .eq(UserCoupon::getUserId, userId).eq(UserCoupon::getCouponId, couponId));
+        if (existed != null && existed > 0) {
+            throw new BusinessException(ErrorCode.OPERATION_NOT_ALLOWED, "您已领取过该优惠券");
+        }
+        // 库存校验（0 表示不限量）
+        if (coupon.getTotalCount() != null && coupon.getTotalCount() > 0
+                && coupon.getReceivedCount() != null && coupon.getReceivedCount() >= coupon.getTotalCount()) {
+            throw new BusinessException(ErrorCode.OPERATION_NOT_ALLOWED, "优惠券已被领完");
+        }
         UserCoupon userCoupon = new UserCoupon();
         userCoupon.setUserId(userId);
         userCoupon.setCouponId(couponId);
         userCoupon.setStatus(0);
         userCouponMapper.insert(userCoupon);
+        // 原子扣减/累加领取数（条件更新，防止并发超发）
+        com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Coupon> uw =
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<>();
+        uw.eq(Coupon::getId, couponId);
+        if (coupon.getTotalCount() != null && coupon.getTotalCount() > 0) {
+            uw.lt(Coupon::getReceivedCount, coupon.getTotalCount());
+        }
+        uw.setSql("received_count = IFNULL(received_count, 0) + 1");
+        couponMapper.update(null, uw);
         log.info("领取优惠券：userId={}, couponId={}", userId, couponId);
     }
 

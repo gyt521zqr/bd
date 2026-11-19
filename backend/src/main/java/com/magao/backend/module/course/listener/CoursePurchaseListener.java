@@ -9,8 +9,9 @@ import com.magao.backend.module.course.mapper.CoursePurchaseMapper;
 import com.magao.backend.module.payment.event.OrderPaidEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * 课程入学记录监听器。
@@ -32,8 +33,12 @@ public class CoursePurchaseListener {
     private final CoursePurchaseMapper coursePurchaseMapper;
     private final CourseMapper courseMapper;
 
-    /** 课程订单支付成功后写入入学记录 */
-    @EventListener
+    /**
+     * 课程订单支付成功后写入入学记录（P0-04）。
+     * AFTER_COMMIT：订单状态提交后再开通权益，避免外部回调场景下支付状态回滚但权益已写入；
+     * 监听器自身幂等（唯一索引 + 先查后插），可安全重试。
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onOrderPaid(OrderPaidEvent event) {
         // 仅处理课程类订单（productType == 1）；会员/积分商品由各自模块处理
         if (event.getProductType() == null || event.getProductType() != 1) {

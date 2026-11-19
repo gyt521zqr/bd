@@ -49,4 +49,28 @@ public interface OrderService extends IService<PayOrder> {
 
     /** PayOrder -> OrderItemVO 枚举转换 */
     OrderItemVO toItemVO(PayOrder order);
+
+    /**
+     * 确认订单支付成功（P0-02）：仅供支付回调 / 主动查单补偿调用，带幂等。
+     * 校验金额一致后置为已支付并发布开通事件；重复回调直接返回不重复开通。
+     *
+     * @param orderNo      订单号
+     * @param tradeNo      第三方交易号
+     * @param paidAmount   回调金额（用于核对，防止小额支付刷单）
+     * @return 是否发生状态变更（true=本次确认成功，false=已确认过/幂等跳过）
+     */
+    boolean confirmPaid(String orderNo, String tradeNo, java.math.BigDecimal paidAmount);
+
+    /**
+     * 超时关单（MQ 消费者调用，幂等）：仅当订单仍为待支付时关闭并释放锁定的优惠券。
+     *
+     * @return 是否发生了状态变更
+     */
+    boolean closeExpiredOrder(String orderNo);
+
+    /**
+     * P0-14：校验订单归属，越权抛出 FORBIDDEN。
+     * 供 detail/status/pay 等按 orderId 访问的接口调用。
+     */
+    void assertOwned(Long orderId, Long userId);
 }
