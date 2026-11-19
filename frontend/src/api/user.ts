@@ -46,6 +46,15 @@ export function logout() {
   return request.post<any, Result<null>>('/auth/logout')
 }
 
+/** 刷新 Token（accessToken 过期时静默调用） */
+export function refreshToken(refreshToken: string) {
+  return request.post<any, Result<{ accessToken: string; refreshToken: string; tokenType: string; user: UserInfo }>>(
+    '/auth/refresh',
+    null,
+    { params: { refreshToken } },
+  )
+}
+
 /** 更新用户信息 */
 export function updateUserInfo(data: Partial<UserInfo>) {
   return request.put<any, Result<UserInfo>>('/user/info', data)

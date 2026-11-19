@@ -52,6 +52,10 @@ export const useUserStore = defineStore('user', () => {
     // 生产环境 token 由后端 httpOnly Cookie 管理，内存仅存占位符（防 XSS 读真实 token）
     token.value = import.meta.env.PROD ? 'httpOnly' : res.data.accessToken
     setToken(res.data.accessToken)
+    // 保存 refreshToken，用于 accessToken 过期时静默刷新
+    if (res.data.refreshToken) {
+      setLocal('refreshToken', res.data.refreshToken)
+    }
     if (res.data.user) {
       userInfo.value = res.data.user
       setLocal('userInfo', res.data.user)
@@ -115,6 +119,7 @@ export const useUserStore = defineStore('user', () => {
     userInfo.value = null
     removeToken()
     removeLocal('userInfo')
+    removeLocal('refreshToken')
   }
 
   /** 更新用户信息 */

@@ -5,6 +5,7 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 import { getToken, removeToken } from '@/utils/auth'
+import { getLocal, setLocal } from '@/utils/localStore'
 import router from '@/router'
 
 /** 扩展 AxiosRequestConfig，支持 silent 选项 */
@@ -29,6 +30,25 @@ const service: AxiosInstance = axios.create({
     'Content-Type': 'application/json;charset=UTF-8',
   },
 })
+
+/** 独立 refresh 实例（不经过下方拦截器，避免 401 循环） */
+const refreshService = axios.create({
+  baseURL: import.meta.env.VITE_APP_BASE_API,
+  timeout: 30000,
+  withCredentials: true,
+})
+
+/** 静默刷新 token；成功返回新 accessToken，失败抛异常 */
+async function doRefresh(): Promise<string> {
+  const rt = getLocal<string>('refreshToken')
+  if (!rt) throw new Error('no refresh token')
+  const res = await refreshService.post('/auth/refresh', null, { params: { refreshToken: rt } })
+  if (res?.data?.code === 200 && res.data.data?.refreshToken) {
+    setLocal('refreshToken', res.data.data.refreshToken)
+    return res.data.data.accessToken
+  }
+  throw new Error('refresh failed')
+}
 
 /** 请求拦截器：在请求头中添加 Token */
 service.interceptors.request.use(
@@ -77,7 +97,7 @@ service.interceptors.response.use(
     }
     return res
   },
-  (error) => {
+  async (error) => {
     const silent = (error.config as RequestConfig)?.silent || false
     const url = error.config?.url || ''
 
@@ -106,11 +126,19 @@ service.interceptors.response.use(
     const message = messages[status] || `请求失败（${status}）`
     ElMessage.error(message)
 
-    // 401 跳转登录页
-    if (status === 401) {
-      removeToken()
-      router.push('/login')
+    // 401：先尝试静默刷新 token，成功则重试原请求；失败才登出跳转
+    if (status === 401 && !(error.config as any)?._retried) {
+      ;(error.config as any)._retried = true
+      try {
+        await doRefresh()
+        // 刷新成功（后端已下发新 httpOnly Cookie），重试原请求
+        return service(error.config)
+      } catch (e) {
+        console.warn('[refresh] token 刷新失败，跳转登录', e)
+      }
     }
+    removeToken()
+    router.push('/login')
 
     return Promise.reject(error)
   }
