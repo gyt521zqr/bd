@@ -140,7 +140,7 @@
         <p><strong>置顶：</strong>{{ viewRow.isPinned ? '是' : '否' }}</p>
         <p><strong>发布时间：</strong>{{ viewRow.publishTime }}</p>
         <p><strong>内容：</strong></p>
-        <div style="background: #f5f7fa; border-radius: 8px; padding: 12px 16px; margin: 8px 0; white-space: pre-wrap;" v-html="viewRow.content"></div>
+        <div style="background: #f5f7fa; border-radius: 8px; padding: 12px 16px; margin: 8px 0; white-space: pre-wrap;" v-html="sanitizeHtml(viewRow.content)"></div>
       </div>
     </el-dialog>
   </div>
@@ -157,6 +157,7 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { newsApi } from '@/api/admin'
 import { type NewsItem } from '@/api/news'
 import { useOperationLog } from '@/composables/useOperationLog'
+import { sanitizeHtml } from '@/utils/sanitize'
 import ImageUploader from '@/components/common/ImageUploader.vue'
 
 const opLog = useOperationLog('news')

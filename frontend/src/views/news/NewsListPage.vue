@@ -138,7 +138,7 @@
           <span class="detail-time">{{ currentNews.time }}</span>
           <span class="detail-views" v-if="currentNews.views > 0">阅读 {{ currentNews.views }}</span>
         </div>
-        <div class="detail-body" v-html="currentNews.content"></div>
+        <div class="detail-body" v-html="sanitizeHtml(currentNews.content)"></div>
       </div>
     </el-dialog>
   </div>
@@ -152,6 +152,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { Timer, View, Document } from '@element-plus/icons-vue'
 import { getNewsList, type NewsItem } from '@/api/news'
+import { sanitizeHtml } from '@/utils/sanitize'
 
 // 分类（动态 + 全部）
 const categoryMap: Record<string, { label: string; color: string; icon: string }> = {

@@ -49,12 +49,30 @@ export const useUserStore = defineStore('user', () => {
   /** 用户登录 */
   async function login(loginForm: LoginParams) {
     const res = await loginApi(loginForm)
-    // 后端返回 { accessToken, refreshToken, tokenType, user }
-    token.value = res.data.accessToken
+    // 生产环境 token 由后端 httpOnly Cookie 管理，内存仅存占位符（防 XSS 读真实 token）
+    token.value = import.meta.env.PROD ? 'httpOnly' : res.data.accessToken
     setToken(res.data.accessToken)
     if (res.data.user) {
       userInfo.value = res.data.user
       setLocal('userInfo', res.data.user)
+    }
+  }
+
+  /**
+   * 静默判断登录态（生产环境刷新后 httpOnly Cookie 无法被 JS 读取）
+   * 通过调用 getUserInfo 判断 Cookie 是否有效；成功则标记已登录。
+   * @returns 是否已登录
+   */
+  async function ensureAuth(): Promise<boolean> {
+    if (token.value) return true
+    try {
+      const res = await getUserInfoApi({ silent: true })
+      userInfo.value = res.data
+      setLocal('userInfo', res.data)
+      token.value = 'httpOnly'
+      return true
+    } catch {
+      return false
     }
   }
 
@@ -116,6 +134,7 @@ export const useUserStore = defineStore('user', () => {
     isTeacher,
     hasAnyRole,
     login,
+    ensureAuth,
     fetchUserInfo,
     logout,
     updateUserInfo,

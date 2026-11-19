@@ -4,12 +4,14 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.magao.backend.common.constant.RedisKeyConstant;
 import com.magao.backend.common.dto.PageDTO;
 import com.magao.backend.common.exception.BusinessException;
 import com.magao.backend.common.result.ErrorCode;
 import com.magao.backend.common.util.CryptoUtil;
 import com.magao.backend.common.util.MaskUtil;
 import com.magao.backend.common.util.PasswordUtil;
+import com.magao.backend.common.util.RedisUtil;
 import com.magao.backend.module.user.entity.User;
 import com.magao.backend.module.user.mapper.UserMapper;
 import com.magao.backend.module.user.service.UserService;
@@ -19,6 +21,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * 用户服务实现类
@@ -35,6 +39,8 @@ import org.springframework.util.StringUtils;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
     private static final String PASSWORD_SALT = "magao_salt_2024";
+
+    private final RedisUtil redisUtil;
 
     @Override
     public User register(User user) {
@@ -74,16 +80,38 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
-    public void updateUserInfo(Long userId, String nickname, String realName, String phone, String email, String avatar) {
+    public void updateUserInfo(Long userId, String nickname, String realName, String phone, String email, String avatar, String smsCode) {
         User user = getById(userId);
         if (user == null) { throw new BusinessException(ErrorCode.USER_NOT_FOUND); }
         LambdaUpdateWrapper<User> uw = new LambdaUpdateWrapper<>();
         uw.eq(User::getId, userId);
         if (StringUtils.hasText(nickname)) uw.set(User::getNickname, nickname);
         if (StringUtils.hasText(realName)) uw.set(User::getRealName, realName);
-        if (StringUtils.hasText(phone)) uw.set(User::getPhone, phone);
         if (StringUtils.hasText(email)) uw.set(User::getEmail, email);
         if (StringUtils.hasText(avatar)) uw.set(User::getAvatar, avatar);
+
+        // P1-20：修改手机号需短信验证码 + 唯一性校验（手机号即登录名，可被用于账号接管）
+        if (StringUtils.hasText(phone)) {
+            if (!phone.equals(user.getPhone())) {
+                if (!StringUtils.hasText(smsCode)) {
+                    throw new BusinessException(ErrorCode.PARAM_ERROR, "修改手机号需短信验证码");
+                }
+                String codeKey = RedisKeyConstant.USER_SMS_CODE_PREFIX + phone;
+                Object cached = redisUtil.get(codeKey);
+                if (cached == null) {
+                    throw new BusinessException(ErrorCode.SMS_CODE_EXPIRED);
+                }
+                if (!smsCode.equals(cached.toString())) {
+                    throw new BusinessException(ErrorCode.SMS_CODE_ERROR);
+                }
+                redisUtil.delete(codeKey);
+                User existing = getByPhone(phone);
+                if (existing != null && !existing.getId().equals(userId)) {
+                    throw new BusinessException(ErrorCode.PARAM_ERROR, "该手机号已被其他账号使用");
+                }
+            }
+            uw.set(User::getPhone, phone);
+        }
         update(uw);
         log.info("用户资料更新：userId={}", userId);
     }

@@ -11,8 +11,12 @@ import com.magao.backend.module.user.vo.LoginVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -32,12 +36,31 @@ public class AuthController extends BaseController {
 
     private final AuthService authService;
 
+    /** httpOnly Cookie 的 Secure 标志（生产 HTTPS 环境为 true） */
+    @Value("${app.cookie-secure:false}")
+    private boolean cookieSecure;
+
+    /** 写 token 到 httpOnly Cookie（P1-18：防 XSS 窃取） */
+    private void writeTokenCookie(HttpServletResponse response, String token) {
+        ResponseCookie cookie = ResponseCookie.from("magao_token", token == null ? "" : token)
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(token == null ? 0 : 7 * 24 * 3600)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+
     @Operation(summary = "用户登录", description = "支持密码登录、短信登录、微信登录")
     @PostMapping("/login")
     @RateLimit(key = "login", timeWindow = 60, maxCount = 10, message = "登录请求过于频繁")
-    public Result<LoginVO> login(@Valid @RequestBody LoginDTO loginDTO, HttpServletRequest request) {
+    public Result<LoginVO> login(@Valid @RequestBody LoginDTO loginDTO, HttpServletRequest request,
+                                 HttpServletResponse response) {
         String loginIp = IpUtil.getClientIp(request);
         LoginVO loginVO = authService.login(loginDTO, loginIp);
+        // 下发 httpOnly Cookie（前端 withCredentials 自动携带，JS 无法读取）
+        writeTokenCookie(response, loginVO.getAccessToken());
         return Result.success(loginVO);
     }
 
@@ -59,15 +82,17 @@ public class AuthController extends BaseController {
 
     @Operation(summary = "刷新Token", description = "使用Refresh Token获取新的Access Token")
     @PostMapping("/refresh")
-    public Result<LoginVO> refreshToken(@RequestParam String refreshToken) {
+    public Result<LoginVO> refreshToken(@RequestParam String refreshToken, HttpServletResponse response) {
         LoginVO loginVO = authService.refreshToken(refreshToken);
+        writeTokenCookie(response, loginVO.getAccessToken());
         return Result.success(loginVO);
     }
 
     @Operation(summary = "用户登出", description = "退出登录，清除Token")
     @PostMapping("/logout")
-    public Result<Void> logout() {
+    public Result<Void> logout(HttpServletResponse response) {
         authService.logout(getCurrentUserId());
+        writeTokenCookie(response, null); // 清除 httpOnly Cookie
         return Result.success();
     }
 }

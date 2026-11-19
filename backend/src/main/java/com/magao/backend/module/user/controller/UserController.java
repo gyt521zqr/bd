@@ -52,7 +52,7 @@ public class UserController extends BaseController {
     @PutMapping("/info")
     public Result<Void> updateInfo(@RequestBody UserInfoUpdateDTO dto) {
         userService.updateUserInfo(getCurrentUserId(), dto.getNickname(), dto.getRealName(),
-                dto.getPhone(), dto.getEmail(), dto.getAvatar());
+                dto.getPhone(), dto.getEmail(), dto.getAvatar(), dto.getSmsCode());
         return Result.success();
     }
 

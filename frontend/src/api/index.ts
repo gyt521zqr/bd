@@ -24,6 +24,7 @@ const isDevMode = import.meta.env.DEV
 const service: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_APP_BASE_API,
   timeout: 30000,
+  withCredentials: true, // P1-18：携带后端下发的 httpOnly Cookie
   headers: {
     'Content-Type': 'application/json;charset=UTF-8',
   },

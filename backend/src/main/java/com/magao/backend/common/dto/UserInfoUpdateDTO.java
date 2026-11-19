@@ -14,6 +14,9 @@ public class UserInfoUpdateDTO {
 
     private String phone;
 
+    /** 修改手机号时的短信验证码（仅当 phone 变化时必填） */
+    private String smsCode;
+
     private String email;
 
     private String avatar;

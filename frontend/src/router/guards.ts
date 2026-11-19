@@ -82,6 +82,19 @@ export function setupGuards(router: Router) {
       }
     } else {
       // 未登录状态
+      // 生产环境：token 存 httpOnly Cookie（JS 读不到），先静默判断登录态
+      if (import.meta.env.PROD) {
+        const authed = await userStore.ensureAuth()
+        if (authed) {
+          if (to.path === '/login') {
+            next({ path: '/' })
+          } else {
+            if (!userStore.userInfo) userStore.fetchUserInfo()
+            next()
+          }
+          return
+        }
+      }
       if (whiteList.includes(to.path)) {
         next()
       } else {

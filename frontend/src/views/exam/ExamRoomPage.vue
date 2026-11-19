@@ -80,7 +80,7 @@
           <el-icon><Document /></el-icon>
           <span>题目描述</span>
         </div>
-        <div class="problem-content" v-html="competitionInfo?.problemDescription || '暂无题目描述'"></div>
+        <div class="problem-content" v-html="sanitizeHtml(competitionInfo?.problemDescription || '')"></div>
       </div>
 
       <!-- 竞赛状态 -->
@@ -184,6 +184,7 @@ import {
   getCompetitionRanking,
 } from '@/api/competition'
 import { getCompetitionStatus } from '@/api/scratch'
+import { sanitizeHtml } from '@/utils/sanitize'
 import { useAntiCheat } from '@/hooks/useAntiCheat'
 import { useUserStore } from '@/stores/user'
 import type {

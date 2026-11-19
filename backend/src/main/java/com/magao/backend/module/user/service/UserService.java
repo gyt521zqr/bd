@@ -30,7 +30,7 @@ public interface UserService extends IService<User> {
     void changePassword(Long userId, String oldPassword, String newPassword);
 
     /** 更新用户资料（仅更新非空字段） */
-    void updateUserInfo(Long userId, String nickname, String realName, String phone, String email, String avatar);
+    void updateUserInfo(Long userId, String nickname, String realName, String phone, String email, String avatar, String smsCode);
 
     /** 绑定家长手机号 */
     void bindParentPhone(Long userId, String parentPhone);

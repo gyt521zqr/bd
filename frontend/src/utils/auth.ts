@@ -26,21 +26,26 @@ const cookieOptions = isProduction
 
 /** 获取 Token */
 export function getToken(): string {
+  // 生产环境 token 由后端 httpOnly Cookie 管理（JS 不可读，防 XSS 窃取），返回空
+  if (isProduction) return ''
   return Cookies.get(TOKEN_KEY) || ''
 }
 
 /**
  * 设置 Token
+ * 生产环境不再用 js-cookie 设置（后端登录接口已下发 httpOnly Cookie），
+ * 仅开发环境保留 js-cookie 便于本地联调。
  * @param token JWT Token 字符串
  * @param expires 过期天数，默认 7 天
  */
 export function setToken(token: string, expires: number = 7): void {
+  if (isProduction) return
   Cookies.set(TOKEN_KEY, token, { expires, ...cookieOptions })
 }
 
 /**
  * 删除 Token
- * 需要传入与 setToken 相同的 sameSite/secure 选项才能正确删除
+ * 生产环境依赖后端 /auth/logout 清除 httpOnly Cookie；此处清理开发环境本地 Cookie 兜底。
  */
 export function removeToken(): void {
   Cookies.remove(TOKEN_KEY, cookieOptions)

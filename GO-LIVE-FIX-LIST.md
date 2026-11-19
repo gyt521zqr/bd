@@ -339,3 +339,16 @@ P1 穿插进行，CI/CD(P1-28) 要在第一波就配好以便快速发版
 | P1-21 手机号/姓名脱敏 | ✅ | 新增 `MaskUtil`；`bindParentPhone` 日志脱敏；`pageList` 返回 UserVO 时 phone/realName 脱敏 |
 
 **验证**：后端 `mvn package` ✅ / 前端 `vue-tsc` ✅ / 交叉审计（3 实现校验、锁定调用链、脱敏点、any 清零）全通过。
+
+---
+
+## 九、继续清安全 P1（2026-11-19 续四）
+
+### 安全 P1 三项 ✅
+| 项 | 状态 | 关键改动 |
+|---|---|---|
+| P1-24 存储型 XSS | ✅ | 安装 DOMPurify，新增 `utils/sanitize.ts` 白名单过滤；3 处 v-html（资讯列表/后台预览/题目描述）全部包 `sanitizeHtml` |
+| P1-20 手机号无验证修改 | ✅ | `UserInfoUpdateDTO` 加 smsCode；修改手机号需短信验证码 + 唯一性校验（防账号接管） |
+| P1-18 token httpOnly | ✅ | 后端登录/刷新/登出下发/清除 httpOnly Cookie；JwtAuthFilter 支持 Cookie fallback；前端 `withCredentials` + 生产不存 js-cookie + `ensureAuth` 静默判断登录态 |
+
+**验证**：后端 `mvn package` ✅ / 前端 `vue-tsc` ✅ / 交叉审计（v-html 过滤、token 双轨链路、手机号验证）全通过。
