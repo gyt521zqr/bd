@@ -17,6 +17,7 @@ import com.magao.backend.module.user.vo.LoginVO;
 import com.magao.backend.module.user.vo.UserVO;
 import com.magao.backend.module.system.entity.SysLog;
 import com.magao.backend.module.system.mapper.SysLogMapper;
+import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -142,6 +143,19 @@ public class AuthServiceImpl implements AuthService {
             throw new AuthException(ErrorCode.TOKEN_INVALID);
         }
         Long userId = jwtUtil.getUserId(refreshToken);
+        // P1-15：校验 refreshToken 是否在登出前签发（登出后旧 refreshToken 一律失效）
+        Object logoutTime = redisUtil.get(LOGOUT_TIME_PREFIX + userId);
+        if (logoutTime != null) {
+            try {
+                long logoutAt = Long.parseLong(logoutTime.toString());
+                Claims claims = jwtUtil.parseToken(refreshToken);
+                if (claims.getIssuedAt() != null && claims.getIssuedAt().getTime() <= logoutAt) {
+                    throw new AuthException(ErrorCode.TOKEN_INVALID);
+                }
+            } catch (NumberFormatException ignored) {
+                // 登出时间戳异常视为未登出
+            }
+        }
         User user = userService.getById(userId);
         if (user == null) { throw new BusinessException(ErrorCode.USER_NOT_FOUND); }
         String newAccessToken = jwtUtil.generateAccessToken(user.getId(), user.getUsername());
@@ -163,6 +177,9 @@ public class AuthServiceImpl implements AuthService {
     public void logout(Long userId) {
         String tokenKey = RedisKeyConstant.USER_TOKEN_PREFIX + userId;
         redisUtil.delete(tokenKey);
+        // P1-15：记录登出时间戳，使已签发的 refreshToken 失效（refresh 时校验签发时间）
+        redisUtil.set(LOGOUT_TIME_PREFIX + userId, String.valueOf(System.currentTimeMillis()),
+                REFRESH_TOKEN_EXPIRE_SECONDS, TimeUnit.SECONDS);
         log.info("用户登出：userId={}", userId);
     }
 
@@ -209,6 +226,8 @@ public class AuthServiceImpl implements AuthService {
     private static final String LOGIN_FAIL_PREFIX = "login:fail:";
     private static final int LOGIN_FAIL_MAX = 5;
     private static final int LOGIN_LOCK_SECONDS = 15 * 60;
+    private static final String LOGOUT_TIME_PREFIX = "user:logout:";
+    private static final long REFRESH_TOKEN_EXPIRE_SECONDS = 7 * 24 * 3600L;
 
     /** 检查账号是否因连续失败被锁定 */
     private void checkLoginLock(String account) {
