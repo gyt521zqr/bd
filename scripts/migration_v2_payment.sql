@@ -12,11 +12,12 @@ ALTER TABLE `pay_order`
 -- 2. 用户优惠券状态补充"锁定中"(3) 语义说明；已存在 status 列，无需改结构。
 --    status: 0-未使用, 1-已使用, 2-已过期, 3-已锁定(下单待支付)
 
--- 3. 支付回调日志表增加唯一约束防重放（业务层也做幂等，双保险）
---    说明：若历史数据存在重复 order_no+trade_no，请先清理后再加索引
--- ALTER TABLE `pay_callback_log` ADD UNIQUE INDEX `uk_order_trade` (`order_no`, `trade_no`);
+-- 3. 支付订单防重放唯一索引（order_no + trade_no，可选加固；业务层 confirmPaid 已幂等）
+--    注意：trade_no 列在 pay_order 表（pay_callback_log 仅存 order_no，回调日志应保留全部记录含失败重试，故不加唯一索引）
+--    说明：若历史数据存在重复 order_no 或 trade_no，请先清理后再加索引
+-- ALTER TABLE `pay_order` ADD UNIQUE INDEX `uk_order_trade` (`order_no`, `trade_no`);
 
--- 4. 订单号唯一索引确保幂等（若 v1 已存在则忽略）
+-- 4. 订单号唯一索引确保幂等（schema_init.sql 已含 uk_order_no，仅 v1 旧库缺失时才需执行）
 -- ALTER TABLE `pay_order` ADD UNIQUE INDEX `uk_order_no` (`order_no`);
 
 SELECT 'migration v2 payment done' AS result;

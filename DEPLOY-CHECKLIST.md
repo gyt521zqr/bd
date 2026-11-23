@@ -68,13 +68,25 @@
 
 ---
 
-## 三、数据库迁移
+## 三、数据库初始化 / 迁移
 
+> **关键**：`schema_init.sql` / `scripts/init-db.sql` 已是**最新版**（已含 `pay_order.coupon_id`、`user_membership` 表、`uk_order_no` 唯一索引）。
+> 迁移脚本 `migration_v2_payment.sql` **仅用于 v1 旧库升级**。
+
+### 场景 A：全新部署（推荐，直接用最新 schema）
+```bash
+# 首次启动 MySQL 时，init-db.sql 会经 docker-entrypoint-initdb.d 自动执行，无需手动。
+# 如需手动执行：
+mysql -uroot -p magao_platform < scripts/init-db.sql
+# 无需再跑迁移脚本（schema 已是最新）
+```
+
+### 场景 B：v1 旧库升级（已有历史数据）
 ```bash
 # 1. 备份（必须）
 mysqldump -uroot -p magao_platform > backup_before_v2_$(date +%F).sql
 
-# 2. 执行迁移
+# 2. 执行增量迁移
 mysql -uroot -p magao_platform < scripts/migration_v2_payment.sql
 
 # 3. 验证
@@ -83,7 +95,6 @@ mysql -uroot -p magao_platform -e "SHOW TABLES LIKE 'user_membership';"  # 应�
 ```
 
 > 迁移内容：`pay_order` 加 `coupon_id` 列、新增 `user_membership` 会员权益表。
-> 可选（幂等加固）：`pay_order.order_no`、`pay_callback_log(order_no,trade_no)` 唯一索引（历史有重复数据需先清理）。
 
 ---
 
