@@ -352,3 +352,18 @@ P1 穿插进行，CI/CD(P1-28) 要在第一波就配好以便快速发版
 | P1-18 token httpOnly | ✅ | 后端登录/刷新/登出下发/清除 httpOnly Cookie；JwtAuthFilter 支持 Cookie fallback；前端 `withCredentials` + 生产不存 js-cookie + `ensureAuth` 静默判断登录态 |
 
 **验证**：后端 `mvn package` ✅ / 前端 `vue-tsc` ✅ / 交叉审计（v-html 过滤、token 双轨链路、手机号验证）全通过。
+
+---
+
+## 十、继续清 P1（2026-11-19 续五，按最优路线）
+
+### 本轮完成 4 项 ✅
+| 项 | 状态 | 关键改动 |
+|---|---|---|
+| P1-27 订单超时关单 | ✅ | 新增 `OrderTimeoutTask` 定时扫描过期订单自动关单 + 回滚优惠券（幂等） |
+| P1-15 refresh 登出失效 | ✅ | logout 记录登出时间戳，refreshToken 校验签发时间，登出后旧 refreshToken 失效 |
+| P1-03 排行榜/周报假数据 | ✅ | 提交次数/完成考试数/完成课程数从 point_log 流水聚合统计，去写死 0 |
+| P1-17 限流 IP 伪造 | ✅ | `IpUtil.getClientIp` 直连不信任 X-Forwarded-For（防伪造绕过）；清理 RateLimitAspect 死代码 |
+| P1-23 前端静默刷新 | ✅ | 登录保存 refreshToken；401 时调 /auth/refresh 静默刷新并重试原请求，失败才登出 |
+
+**验证**：后端 `mvn package` ✅ / 前端 `vue-tsc` ✅ / 已全部 commit + push 到 bd/main（72780c1..ac0ee6f）。
